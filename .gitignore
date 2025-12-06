@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Env
+venv/
+env/
+ENV/
+.env
+.venv
+env.bak/
+venv.bak/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+# Keep package-lock.json usually, but sometimes ignored. Standard is to keep it. 
+# I will NOT ignore package-lock.json as it is good practice to version it.
+
+# Frontend build
+frontend/dist/
+frontend/build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

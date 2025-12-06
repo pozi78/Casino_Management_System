@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+alembic
+asyncpg
+pydantic
+pydantic-settings
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+psycopg2-binary # For easy sync operations if needed, though asyncpg is primary
+email-validator
