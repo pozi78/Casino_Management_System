@@ -29,6 +29,7 @@ class Settings(BaseSettings):
         "http://localhost:5179",
         "http://127.0.0.1",
         "http://127.0.0.1:5173",
+        "http://172.16.101.5:7173", # Remote Frontend
     ]
 
     @property

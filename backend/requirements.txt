@@ -10,3 +10,4 @@ passlib[bcrypt]
 python-multipart
 psycopg2-binary # For easy sync operations if needed, though asyncpg is primary
 email-validator
+argon2-cffi

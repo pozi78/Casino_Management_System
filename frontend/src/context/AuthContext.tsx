@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import api from '../api/axios';
+import { createContext, useContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
+
 
 interface AuthContextType {
     token: string | null;

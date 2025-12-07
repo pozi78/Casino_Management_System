@@ -39,7 +39,7 @@ export default function Login() {
                 setDebugInfo(`Status: ${err.response.status}`);
             } else if (err.request) {
                 setError('No se pudo conectar con el servidor.');
-                setDebugInfo('Network Error - Check backend at port 8000');
+                setDebugInfo(`Network Error - Unreachable at ${api.defaults.baseURL}`);
             } else {
                 setError('Error desconocido');
                 setDebugInfo(err.message);

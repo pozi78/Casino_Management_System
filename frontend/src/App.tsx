@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
@@ -8,7 +10,7 @@ import Usuarios from './pages/Usuarios';
 import Configuracion from './pages/Configuracion';
 import Layout from './components/Layout';
 
-const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
+const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return children;

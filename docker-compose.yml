@@ -4,10 +4,11 @@ services:
   backend:
     build: ./backend
     container_name: casinosm-backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
-      - "7000:8000"
+      - "9000:8000"
     environment:
-      - DATABASE_URL=postgresql://userCasinoSM:postCasinoSM@database:7432/casinosm
+      - DATABASE_URL=postgresql+asyncpg://userCasinoSM:postCasinoSM@database:5432/casinosm
       - POSTGRES_SERVER=database
       - POSTGRES_USER=userCasinoSM
       - POSTGRES_PASSWORD=postCasinoSM
@@ -25,7 +26,7 @@ services:
     ports:
       - "7173:5173"
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - VITE_API_URL=http://172.16.101.5:9000
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -51,9 +52,10 @@ services:
 volumes:
   postgres_data:
 
+
 networks:
   botnet_dev:
     driver: bridge
     ipam:
       config:
-        - subnet: 10.21.0.0/24
+        - subnet: 10.25.0.0/24

@@ -47,8 +47,8 @@ docker compose exec backend python initial_data.py
 ```
 
 ### 4. Acceso
-- **Frontend**: http://172.16.101.5:5173
-- **Backend API**: http://172.16.101.5:8000/docs
+- **Frontend**: http://172.16.101.5:7173
+- **Backend API**: http://172.16.101.5:9000/docs
 - **Credenciales por defecto**: `admin@example.com` / `admin`
 
 ## Tips Desarrollo Remoto
