@@ -8,9 +8,10 @@ interface MoneyInputProps {
     readOnly?: boolean;
     id?: string;
     nextFocusId?: string;
+    className?: string;
 }
 
-export const MoneyInput: React.FC<MoneyInputProps> = ({ value, onChange, onBlur, readOnly, id, nextFocusId }) => {
+export const MoneyInput: React.FC<MoneyInputProps> = ({ value, onChange, onBlur, readOnly, id, nextFocusId, className }) => {
     const [internalValue, setInternalValue] = useState<string>('');
     const [isEditing, setIsEditing] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -66,6 +67,12 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({ value, onChange, onBlur,
         // Regex allows numbers, one comma or dot, minus at start
         if (/^-?[0-9]*([.,][0-9]*)?$/.test(newVal)) {
             setInternalValue(newVal);
+
+            if (newVal === '' || newVal === '-') {
+                // Don't emit 0 for just a minus sign, but do for empty
+                if (newVal === '') onChange(0);
+                return;
+            }
 
             let normalized = newVal.replace(',', '.');
             let num = parseFloat(normalized);
@@ -123,8 +130,13 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({ value, onChange, onBlur,
                 ref={inputRef}
                 type="text"
                 inputMode="decimal" // Mobile numeric keyboard
-                className={`w-full text-right border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50 focus:bg-white transition-colors p-2 pr-6 ${readOnly ? 'bg-gray-100 text-gray-500' : ''}`}
-                value={isEditing ? internalValue : value.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                className={`w-full text-right border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50 focus:bg-white transition-colors p-1 pr-6 ${readOnly ? 'bg-gray-100 text-gray-500' : ''} ${className || ''}`}
+                value={isEditing ? internalValue : (() => {
+                    const fixed = Number(value).toFixed(2);
+                    const [intPart, decPart] = fixed.split('.');
+                    const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                    return `${formattedInt},${decPart}`;
+                })()}
                 onChange={handleChange}
                 onBlur={handleBlur}
                 onFocus={handleFocus}

@@ -14,17 +14,26 @@ class Recaudacion(Base):
     referencia_fichero = Column(String)
     notas = Column(String)
 
+    # Global Editable Fields
+    total_tasas = Column(Numeric(12, 2), default=0)
+    depositos = Column(Numeric(12, 2), default=0)
+    otros_conceptos = Column(Numeric(12, 2), default=0)
+
     salon = relationship("Salon", back_populates="recaudaciones")
     detalles = relationship("RecaudacionMaquina", back_populates="recaudacion", cascade="all, delete-orphan")
 
     @property
-    def total_neto(self):
+    def total_bruto(self):
         if not self.detalles:
             return 0
         return sum(
             (d.retirada_efectivo or 0) + (d.cajon or 0) - (d.pago_manual or 0) + (d.tasa_ajuste or 0)
             for d in self.detalles
         )
+
+    @property
+    def total_neto(self):
+        return self.total_bruto - sum((d.tasa_calculada or 0) for d in (self.detalles or []))
 
 class RecaudacionMaquina(Base):
     __tablename__ = "recaudacion_maquina"

@@ -52,6 +52,7 @@ export interface Maquina {
 
     es_multipuesto: boolean;
     numero_puesto?: number;
+    maquina_padre_id?: number;
     tasa_semanal_override?: number;
 
     activo: boolean;

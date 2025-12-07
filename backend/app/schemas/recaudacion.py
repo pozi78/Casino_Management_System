@@ -49,6 +49,9 @@ class RecaudacionBase(BaseModel):
     origen: Optional[str] = 'manual'
     referencia_fichero: Optional[str] = None
     notas: Optional[str] = None
+    total_tasas: Optional[Decimal] = Decimal(0)
+    depositos: Optional[Decimal] = Decimal(0)
+    otros_conceptos: Optional[Decimal] = Decimal(0)
 
 class RecaudacionCreate(RecaudacionBase):
     pass
@@ -59,6 +62,9 @@ class RecaudacionUpdate(BaseModel):
     fecha_cierre: Optional[date] = None
     etiqueta: Optional[str] = None
     notas: Optional[str] = None
+    total_tasas: Optional[Decimal] = None
+    depositos: Optional[Decimal] = None
+    otros_conceptos: Optional[Decimal] = None
 
 class RecaudacionSummary(RecaudacionBase):
     id: int
@@ -67,9 +73,14 @@ class RecaudacionSummary(RecaudacionBase):
     class Config:
         from_attributes = True
 
+from app.schemas.salon import Salon # Import Salon schema
+
+# ... (omitted)
+
 class Recaudacion(RecaudacionBase):
     id: int
     detalles: List[RecaudacionMaquina] = []
+    salon: Optional[Salon] = None
 
     class Config:
         from_attributes = True

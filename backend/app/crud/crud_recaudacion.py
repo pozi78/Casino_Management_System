@@ -17,7 +17,8 @@ class CRUDRecaudacion:
             .options(
                 joinedload(Recaudacion.detalles)
                 .joinedload(RecaudacionMaquina.maquina)
-                .joinedload(Maquina.tipo_maquina)
+                .joinedload(Maquina.tipo_maquina),
+                joinedload(Recaudacion.salon)
             )
             .where(Recaudacion.id == id)
         )
@@ -62,7 +63,8 @@ class CRUDRecaudacion:
         # 2. Fetch Active Machines with Type loaded
         stmt = select(Maquina).options(joinedload(Maquina.tipo_maquina)).where(
             Maquina.salon_id == obj_in.salon_id,
-            Maquina.activo == True
+            Maquina.activo == True,
+            Maquina.es_multipuesto == False
         )
         result = await db.execute(stmt)
         machines = result.scalars().all()
@@ -83,10 +85,7 @@ class CRUDRecaudacion:
                 weekly_rate = machine.tipo_maquina.tasa_semanal_orientativa
                 detalle_tasa = f"Base Tipo: {machine.tipo_maquina.nombre}"
 
-                # Handle Multi-position Rate
-                if machine.tipo_maquina.tasa_por_puesto and machine.numero_puesto and machine.numero_puesto > 1:
-                    weekly_rate = weekly_rate * machine.numero_puesto
-                    detalle_tasa += f" (x{machine.numero_puesto} puestos)"
+
             
             # Calculate Pro-rated
             # Rate = (Weekly / 7) * days

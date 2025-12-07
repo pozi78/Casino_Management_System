@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { Maquina, MaquinaCreate, TipoMaquina, GrupoMaquina } from '../api/machines';
+import type { Maquina, MaquinaCreate, TipoMaquina } from '../api/machines';
 import type { Salon } from '../api/salones';
 import { machinesApi } from '../api/machines';
 import { salonesApi } from '../api/salones';
@@ -13,13 +13,12 @@ interface MachineFormProps {
 export default function MachineForm({ initialData, onSubmit, onCancel }: MachineFormProps) {
     const [salones, setSalones] = useState<Salon[]>([]);
     const [types, setTypes] = useState<TipoMaquina[]>([]);
-    const [groups, setGroups] = useState<GrupoMaquina[]>([]);
+
     const [isLoadingDeps, setIsLoadingDeps] = useState(true);
 
     const [formData, setFormData] = useState<MaquinaCreate>({
         salon_id: 0,
         tipo_maquina_id: 0,
-        grupo_id: undefined,
         nombre: '',
         nombre_referencia_uorsa: '',
         numero_serie: '',
@@ -35,14 +34,12 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [salonesData, typesData, groupsData] = await Promise.all([
+                const [salonesData, typesData] = await Promise.all([
                     salonesApi.getAll(),
-                    machinesApi.getTypes(),
-                    machinesApi.getGroups()
+                    machinesApi.getTypes()
                 ]);
                 setSalones(salonesData);
                 setTypes(typesData);
-                setGroups(groupsData);
 
                 // Set default first options if creating new
                 if (!initialData) {
@@ -52,7 +49,7 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
 
             } catch (err) {
                 console.error("Error fetching dependencies:", err);
-                setError("No se pudieron cargar los datos necesarios (salones, tipos, grupos).");
+                setError("No se pudieron cargar los datos necesarios (salones, tipos).");
             } finally {
                 setIsLoadingDeps(false);
             }
@@ -66,7 +63,6 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
             setFormData({
                 salon_id: initialData.salon_id,
                 tipo_maquina_id: initialData.tipo_maquina_id,
-                grupo_id: initialData.grupo_id,
                 nombre: initialData.nombre,
                 nombre_referencia_uorsa: initialData.nombre_referencia_uorsa || '',
                 numero_serie: initialData.numero_serie || '',
@@ -178,19 +174,6 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Grupo de Máquinas</label>
-                    <select
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all bg-white"
-                        value={formData.grupo_id || ''}
-                        onChange={(e) => setFormData({ ...formData, grupo_id: e.target.value ? Number(e.target.value) : undefined })}
-                    >
-                        <option value="">Sin Grupo</option>
-                        {groups.map(g => (
-                            <option key={g.id} value={g.id}>{g.nombre}</option>
-                        ))}
-                    </select>
-                </div>
-                <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Número de Serie</label>
                     <input
                         type="text"
@@ -201,6 +184,7 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
                     />
                 </div>
             </div>
+
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex flex-col justify-end pb-2">
@@ -218,14 +202,20 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
 
                 {formData.es_multipuesto && (
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Número Puesto</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {!initialData ? "Cantidad de Puestos (Auto-generar)" : "Número Puesto"}
+                        </label>
                         <input
                             type="number"
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
                             value={formData.numero_puesto || ''}
                             onChange={(e) => setFormData({ ...formData, numero_puesto: parseInt(e.target.value) || 0 })}
-                            placeholder="Ej. 1, 2, 3..."
+                            placeholder={!initialData ? "Ej. 3 (Creará 3 máquinas)" : "Ej. 1"}
+                            min={1}
                         />
+                        {!initialData && (
+                            <p className="text-xs text-gray-500 mt-1">Se crearán {formData.numero_puesto || 0} máquinas vinculadas.</p>
+                        )}
                     </div>
                 )}
             </div>
@@ -271,6 +261,6 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
                     {isSubmitting ? 'Guardando...' : 'Guardar'}
                 </button>
             </div>
-        </form>
+        </form >
     );
 }

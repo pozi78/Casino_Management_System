@@ -1,0 +1,200 @@
+casinosm-frontend  |   14 |     const [salones, setSalones] = useState<Salon[]>([]);
+casinosm-frontend  |   15 |     const [types, setTypes] = useState<TipoMaquina[]>([]);
+casinosm-frontend  | > 16 |     const [salones, setSalones] = useState<Salon[]>([]);
+casinosm-frontend  |      |            ^
+casinosm-frontend  |   17 |     const [types, setTypes] = useState<TipoMaquina[]>([]);
+casinosm-frontend  |   18 |     const [isLoadingDeps, setIsLoadingDeps] = useState(true);
+casinosm-frontend  |   19 |
+casinosm-frontend  |   Plugin: vite:react-babel
+casinosm-frontend  |   File: /app/src/components/MachineForm.tsx:16:11
+casinosm-frontend  |   14 |      const [salones, setSalones] = useState<Salon[]>([]);
+casinosm-frontend  |   15 |      const [types, setTypes] = useState<TipoMaquina[]>([]);
+casinosm-frontend  |   16 |      const [salones, setSalones] = useState<Salon[]>([]);
+casinosm-frontend  |      |                            ^
+casinosm-frontend  |   17 |      const [types, setTypes] = useState<TipoMaquina[]>([]);
+casinosm-frontend  |   18 |      const [isLoadingDeps, setIsLoadingDeps] = useState(true);
+casinosm-frontend  |       at constructor (/app/node_modules/@babel/parser/lib/index.js:367:19)
+casinosm-frontend  |       at TypeScriptParserMixin.raise (/app/node_modules/@babel/parser/lib/index.js:6624:19)
+casinosm-frontend  |       at TypeScriptScopeHandler.checkRedeclarationInScope (/app/node_modules/@babel/parser/lib/index.js:1646:19)
+casinosm-frontend  |       at TypeScriptScopeHandler.declareName (/app/node_modules/@babel/parser/lib/index.js:1612:12)
+casinosm-frontend  |       at TypeScriptScopeHandler.declareName (/app/node_modules/@babel/parser/lib/index.js:4909:11)
+casinosm-frontend  |       at TypeScriptParserMixin.declareNameFromIdentifier (/app/node_modules/@babel/parser/lib/index.js:7594:16)
+casinosm-frontend  |       at TypeScriptParserMixin.checkIdentifier (/app/node_modules/@babel/parser/lib/index.js:7590:12)
+casinosm-frontend  |       at TypeScriptParserMixin.checkLVal (/app/node_modules/@babel/parser/lib/index.js:7527:12)
+casinosm-frontend  |       at TypeScriptParserMixin.checkLVal (/app/node_modules/@babel/parser/lib/index.js:7567:16)
+casinosm-frontend  |       at TypeScriptParserMixin.parseVarId (/app/node_modules/@babel/parser/lib/index.js:13488:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseVarId (/app/node_modules/@babel/parser/lib/index.js:9805:11)
+casinosm-frontend  |       at TypeScriptParserMixin.parseVar (/app/node_modules/@babel/parser/lib/index.js:13459:12)
+casinosm-frontend  |       at TypeScriptParserMixin.parseVarStatement (/app/node_modules/@babel/parser/lib/index.js:13306:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseVarStatement (/app/node_modules/@babel/parser/lib/index.js:9469:31)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementContent (/app/node_modules/@babel/parser/lib/index.js:12927:23)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementContent (/app/node_modules/@babel/parser/lib/index.js:9569:18)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementLike (/app/node_modules/@babel/parser/lib/index.js:12843:17)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementListItem (/app/node_modules/@babel/parser/lib/index.js:12823:17)
+casinosm-frontend  |       at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/app/node_modules/@babel/parser/lib/index.js:13392:61)
+casinosm-frontend  |       at TypeScriptParserMixin.parseBlockBody (/app/node_modules/@babel/parser/lib/index.js:13385:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseBlock (/app/node_modules/@babel/parser/lib/index.js:13373:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseFunctionBody (/app/node_modules/@babel/parser/lib/index.js:12174:24)
+casinosm-frontend  |       at TypeScriptParserMixin.parseFunctionBodyAndFinish (/app/node_modules/@babel/parser/lib/index.js:12160:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseFunctionBodyAndFinish (/app/node_modules/@babel/parser/lib/index.js:9223:18)
+casinosm-frontend  |       at /app/node_modules/@babel/parser/lib/index.js:13521:12
+casinosm-frontend  |       at TypeScriptParserMixin.withSmartMixTopicForbiddingContext (/app/node_modules/@babel/parser/lib/index.js:12477:14)
+casinosm-frontend  |       at TypeScriptParserMixin.parseFunction (/app/node_modules/@babel/parser/lib/index.js:13520:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExportDefaultExpression (/app/node_modules/@babel/parser/lib/index.js:13983:19)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExportDefaultExpression (/app/node_modules/@babel/parser/lib/index.js:9463:18)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExport (/app/node_modules/@babel/parser/lib/index.js:13904:25)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExport (/app/node_modules/@babel/parser/lib/index.js:9446:20)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementContent (/app/node_modules/@babel/parser/lib/index.js:12954:27)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementContent (/app/node_modules/@babel/parser/lib/index.js:9569:18)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementLike (/app/node_modules/@babel/parser/lib/index.js:12843:17)
+casinosm-frontend  |       at TypeScriptParserMixin.parseModuleItem (/app/node_modules/@babel/parser/lib/index.js:12820:17)
+casinosm-frontend  |       at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/app/node_modules/@babel/parser/lib/index.js:13392:36)
+casinosm-frontend  |       at TypeScriptParserMixin.parseBlockBody (/app/node_modules/@babel/parser/lib/index.js:13385:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseProgram (/app/node_modules/@babel/parser/lib/index.js:12698:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseTopLevel (/app/node_modules/@babel/parser/lib/index.js:12688:25)
+casinosm-frontend  |       at TypeScriptParserMixin.parse (/app/node_modules/@babel/parser/lib/index.js:14568:25)
+casinosm-frontend  |       at TypeScriptParserMixin.parse (/app/node_modules/@babel/parser/lib/index.js:10183:18)
+casinosm-frontend  |       at parse (/app/node_modules/@babel/parser/lib/index.js:14602:38)
+casinosm-frontend  |       at parser (/app/node_modules/@babel/core/lib/parser/index.js:41:34)
+casinosm-frontend  |       at parser.next (<anonymous>)
+casinosm-frontend  |       at normalizeFile (/app/node_modules/@babel/core/lib/transformation/normalize-file.js:64:37)
+casinosm-frontend  |       at normalizeFile.next (<anonymous>)
+casinosm-frontend  |       at run (/app/node_modules/@babel/core/lib/transformation/index.js:22:50)
+casinosm-frontend  |       at run.next (<anonymous>)
+casinosm-frontend  |       at transform (/app/node_modules/@babel/core/lib/transform.js:22:33)
+casinosm-frontend  |       at transform.next (<anonymous>)
+casinosm-frontend  | 7:22:17 PM [vite] Internal server error: /app/src/components/MachineForm.tsx: Identifier 'salones' has already been declared. (16:11)
+casinosm-frontend  | 
+casinosm-frontend  |   14 |     const [salones, setSalones] = useState<Salon[]>([]);
+casinosm-frontend  |   15 |     const [types, setTypes] = useState<TipoMaquina[]>([]);
+casinosm-frontend  | > 16 |     const [salones, setSalones] = useState<Salon[]>([]);
+casinosm-frontend  |      |            ^
+casinosm-frontend  |   17 |     const [types, setTypes] = useState<TipoMaquina[]>([]);
+casinosm-frontend  |   18 |     const [isLoadingDeps, setIsLoadingDeps] = useState(true);
+casinosm-frontend  |   19 |
+casinosm-frontend  |   Plugin: vite:react-babel
+casinosm-frontend  |   File: /app/src/components/MachineForm.tsx:16:11
+casinosm-frontend  |   14 |      const [salones, setSalones] = useState<Salon[]>([]);
+casinosm-frontend  |   15 |      const [types, setTypes] = useState<TipoMaquina[]>([]);
+casinosm-frontend  |   16 |      const [salones, setSalones] = useState<Salon[]>([]);
+casinosm-frontend  |      |                            ^
+casinosm-frontend  |   17 |      const [types, setTypes] = useState<TipoMaquina[]>([]);
+casinosm-frontend  |   18 |      const [isLoadingDeps, setIsLoadingDeps] = useState(true);
+casinosm-frontend  |       at constructor (/app/node_modules/@babel/parser/lib/index.js:367:19)
+casinosm-frontend  |       at TypeScriptParserMixin.raise (/app/node_modules/@babel/parser/lib/index.js:6624:19)
+casinosm-frontend  |       at TypeScriptScopeHandler.checkRedeclarationInScope (/app/node_modules/@babel/parser/lib/index.js:1646:19)
+casinosm-frontend  |       at TypeScriptScopeHandler.declareName (/app/node_modules/@babel/parser/lib/index.js:1612:12)
+casinosm-frontend  |       at TypeScriptScopeHandler.declareName (/app/node_modules/@babel/parser/lib/index.js:4909:11)
+casinosm-frontend  |       at TypeScriptParserMixin.declareNameFromIdentifier (/app/node_modules/@babel/parser/lib/index.js:7594:16)
+casinosm-frontend  |       at TypeScriptParserMixin.checkIdentifier (/app/node_modules/@babel/parser/lib/index.js:7590:12)
+casinosm-frontend  |       at TypeScriptParserMixin.checkLVal (/app/node_modules/@babel/parser/lib/index.js:7527:12)
+casinosm-frontend  |       at TypeScriptParserMixin.checkLVal (/app/node_modules/@babel/parser/lib/index.js:7567:16)
+casinosm-frontend  |       at TypeScriptParserMixin.parseVarId (/app/node_modules/@babel/parser/lib/index.js:13488:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseVarId (/app/node_modules/@babel/parser/lib/index.js:9805:11)
+casinosm-frontend  |       at TypeScriptParserMixin.parseVar (/app/node_modules/@babel/parser/lib/index.js:13459:12)
+casinosm-frontend  |       at TypeScriptParserMixin.parseVarStatement (/app/node_modules/@babel/parser/lib/index.js:13306:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseVarStatement (/app/node_modules/@babel/parser/lib/index.js:9469:31)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementContent (/app/node_modules/@babel/parser/lib/index.js:12927:23)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementContent (/app/node_modules/@babel/parser/lib/index.js:9569:18)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementLike (/app/node_modules/@babel/parser/lib/index.js:12843:17)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementListItem (/app/node_modules/@babel/parser/lib/index.js:12823:17)
+casinosm-frontend  |       at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/app/node_modules/@babel/parser/lib/index.js:13392:61)
+casinosm-frontend  |       at TypeScriptParserMixin.parseBlockBody (/app/node_modules/@babel/parser/lib/index.js:13385:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseBlock (/app/node_modules/@babel/parser/lib/index.js:13373:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseFunctionBody (/app/node_modules/@babel/parser/lib/index.js:12174:24)
+casinosm-frontend  |       at TypeScriptParserMixin.parseFunctionBodyAndFinish (/app/node_modules/@babel/parser/lib/index.js:12160:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseFunctionBodyAndFinish (/app/node_modules/@babel/parser/lib/index.js:9223:18)
+casinosm-frontend  |       at /app/node_modules/@babel/parser/lib/index.js:13521:12
+casinosm-frontend  |       at TypeScriptParserMixin.withSmartMixTopicForbiddingContext (/app/node_modules/@babel/parser/lib/index.js:12477:14)
+casinosm-frontend  |       at TypeScriptParserMixin.parseFunction (/app/node_modules/@babel/parser/lib/index.js:13520:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExportDefaultExpression (/app/node_modules/@babel/parser/lib/index.js:13983:19)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExportDefaultExpression (/app/node_modules/@babel/parser/lib/index.js:9463:18)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExport (/app/node_modules/@babel/parser/lib/index.js:13904:25)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExport (/app/node_modules/@babel/parser/lib/index.js:9446:20)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementContent (/app/node_modules/@babel/parser/lib/index.js:12954:27)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementContent (/app/node_modules/@babel/parser/lib/index.js:9569:18)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementLike (/app/node_modules/@babel/parser/lib/index.js:12843:17)
+casinosm-frontend  |       at TypeScriptParserMixin.parseModuleItem (/app/node_modules/@babel/parser/lib/index.js:12820:17)
+casinosm-frontend  |       at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/app/node_modules/@babel/parser/lib/index.js:13392:36)
+casinosm-frontend  |       at TypeScriptParserMixin.parseBlockBody (/app/node_modules/@babel/parser/lib/index.js:13385:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseProgram (/app/node_modules/@babel/parser/lib/index.js:12698:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseTopLevel (/app/node_modules/@babel/parser/lib/index.js:12688:25)
+casinosm-frontend  |       at TypeScriptParserMixin.parse (/app/node_modules/@babel/parser/lib/index.js:14568:25)
+casinosm-frontend  |       at TypeScriptParserMixin.parse (/app/node_modules/@babel/parser/lib/index.js:10183:18)
+casinosm-frontend  |       at parse (/app/node_modules/@babel/parser/lib/index.js:14602:38)
+casinosm-frontend  |       at parser (/app/node_modules/@babel/core/lib/parser/index.js:41:34)
+casinosm-frontend  |       at parser.next (<anonymous>)
+casinosm-frontend  |       at normalizeFile (/app/node_modules/@babel/core/lib/transformation/normalize-file.js:64:37)
+casinosm-frontend  |       at normalizeFile.next (<anonymous>)
+casinosm-frontend  |       at run (/app/node_modules/@babel/core/lib/transformation/index.js:22:50)
+casinosm-frontend  |       at run.next (<anonymous>)
+casinosm-frontend  |       at transform (/app/node_modules/@babel/core/lib/transform.js:22:33)
+casinosm-frontend  |       at transform.next (<anonymous>)
+casinosm-frontend  | 7:25:02 PM [vite] (client) hmr update /src/components/MachineForm.tsx, /src/index.css
+casinosm-frontend  | 7:25:02 PM [vite] Internal server error: /app/src/components/MachineForm.tsx: Expected corresponding JSX closing tag for <form>. (187:12)
+casinosm-frontend  | 
+casinosm-frontend  |   185 |                 </div>
+casinosm-frontend  |   186 |                 </div>
+casinosm-frontend  | > 187 |             </div>
+casinosm-frontend  |       |             ^
+casinosm-frontend  |   188 |
+casinosm-frontend  |   189 |             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+casinosm-frontend  |   190 |                 <div className="flex flex-col justify-end pb-2">
+casinosm-frontend  |   Plugin: vite:react-babel
+casinosm-frontend  |   File: /app/src/components/MachineForm.tsx:187:12
+casinosm-frontend  |   189 |              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+casinosm-frontend  |   190 |                  <div className="flex flex-col justify-end pb-2">
+casinosm-frontend  |   191 |                      <label className="flex items-center cursor-pointer">
+casinosm-frontend  |       |                                               ^
+casinosm-frontend  |   192 |                          <input
+casinosm-frontend  |   193 |                              type="checkbox"
+casinosm-frontend  |       at constructor (/app/node_modules/@babel/parser/lib/index.js:367:19)
+casinosm-frontend  |       at TypeScriptParserMixin.raise (/app/node_modules/@babel/parser/lib/index.js:6624:19)
+casinosm-frontend  |       at TypeScriptParserMixin.jsxParseElementAt (/app/node_modules/@babel/parser/lib/index.js:4756:16)
+casinosm-frontend  |       at TypeScriptParserMixin.jsxParseElement (/app/node_modules/@babel/parser/lib/index.js:4778:17)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExprAtom (/app/node_modules/@babel/parser/lib/index.js:4788:19)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExprSubscripts (/app/node_modules/@babel/parser/lib/index.js:11145:23)
+casinosm-frontend  |       at TypeScriptParserMixin.parseUpdate (/app/node_modules/@babel/parser/lib/index.js:11130:21)
+casinosm-frontend  |       at TypeScriptParserMixin.parseMaybeUnary (/app/node_modules/@babel/parser/lib/index.js:11110:23)
+casinosm-frontend  |       at TypeScriptParserMixin.parseMaybeUnary (/app/node_modules/@babel/parser/lib/index.js:9890:18)
+casinosm-frontend  |       at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/app/node_modules/@babel/parser/lib/index.js:10963:61)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExprOps (/app/node_modules/@babel/parser/lib/index.js:10968:23)
+casinosm-frontend  |       at TypeScriptParserMixin.parseMaybeConditional (/app/node_modules/@babel/parser/lib/index.js:10945:23)
+casinosm-frontend  |       at TypeScriptParserMixin.parseMaybeAssign (/app/node_modules/@babel/parser/lib/index.js:10895:21)
+casinosm-frontend  |       at /app/node_modules/@babel/parser/lib/index.js:9828:39
+casinosm-frontend  |       at TypeScriptParserMixin.tryParse (/app/node_modules/@babel/parser/lib/index.js:6932:20)
+casinosm-frontend  |       at TypeScriptParserMixin.parseMaybeAssign (/app/node_modules/@babel/parser/lib/index.js:9828:18)
+casinosm-frontend  |       at /app/node_modules/@babel/parser/lib/index.js:10864:39
+casinosm-frontend  |       at TypeScriptParserMixin.allowInAnd (/app/node_modules/@babel/parser/lib/index.js:12500:12)
+casinosm-frontend  |       at TypeScriptParserMixin.parseMaybeAssignAllowIn (/app/node_modules/@babel/parser/lib/index.js:10864:17)
+casinosm-frontend  |       at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/app/node_modules/@babel/parser/lib/index.js:12567:17)
+casinosm-frontend  |       at TypeScriptParserMixin.parseParenAndDistinguishExpression (/app/node_modules/@babel/parser/lib/index.js:11747:28)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExprAtom (/app/node_modules/@babel/parser/lib/index.js:11395:23)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExprAtom (/app/node_modules/@babel/parser/lib/index.js:4793:20)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExprSubscripts (/app/node_modules/@babel/parser/lib/index.js:11145:23)
+casinosm-frontend  |       at TypeScriptParserMixin.parseUpdate (/app/node_modules/@babel/parser/lib/index.js:11130:21)
+casinosm-frontend  |       at TypeScriptParserMixin.parseMaybeUnary (/app/node_modules/@babel/parser/lib/index.js:11110:23)
+casinosm-frontend  |       at TypeScriptParserMixin.parseMaybeUnary (/app/node_modules/@babel/parser/lib/index.js:9890:18)
+casinosm-frontend  |       at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/app/node_modules/@babel/parser/lib/index.js:10963:61)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExprOps (/app/node_modules/@babel/parser/lib/index.js:10968:23)
+casinosm-frontend  |       at TypeScriptParserMixin.parseMaybeConditional (/app/node_modules/@babel/parser/lib/index.js:10945:23)
+casinosm-frontend  |       at TypeScriptParserMixin.parseMaybeAssign (/app/node_modules/@babel/parser/lib/index.js:10895:21)
+casinosm-frontend  |       at TypeScriptParserMixin.parseMaybeAssign (/app/node_modules/@babel/parser/lib/index.js:9839:20)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExpressionBase (/app/node_modules/@babel/parser/lib/index.js:10848:23)
+casinosm-frontend  |       at /app/node_modules/@babel/parser/lib/index.js:10844:39
+casinosm-frontend  |       at TypeScriptParserMixin.allowInAnd (/app/node_modules/@babel/parser/lib/index.js:12495:16)
+casinosm-frontend  |       at TypeScriptParserMixin.parseExpression (/app/node_modules/@babel/parser/lib/index.js:10844:17)
+casinosm-frontend  |       at TypeScriptParserMixin.parseReturnStatement (/app/node_modules/@babel/parser/lib/index.js:13218:28)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementContent (/app/node_modules/@babel/parser/lib/index.js:12874:21)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementContent (/app/node_modules/@babel/parser/lib/index.js:9569:18)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementLike (/app/node_modules/@babel/parser/lib/index.js:12843:17)
+casinosm-frontend  |       at TypeScriptParserMixin.parseStatementListItem (/app/node_modules/@babel/parser/lib/index.js:12823:17)
+casinosm-frontend  |       at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/app/node_modules/@babel/parser/lib/index.js:13392:61)
+casinosm-frontend  |       at TypeScriptParserMixin.parseBlockBody (/app/node_modules/@babel/parser/lib/index.js:13385:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseBlock (/app/node_modules/@babel/parser/lib/index.js:13373:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseFunctionBody (/app/node_modules/@babel/parser/lib/index.js:12174:24)
+casinosm-frontend  |       at TypeScriptParserMixin.parseFunctionBodyAndFinish (/app/node_modules/@babel/parser/lib/index.js:12160:10)
+casinosm-frontend  |       at TypeScriptParserMixin.parseFunctionBodyAndFinish (/app/node_modules/@babel/parser/lib/index.js:9223:18)
+casinosm-frontend  |       at /app/node_modules/@babel/parser/lib/index.js:13521:12
+casinosm-frontend  |       at TypeScriptParserMixin.withSmartMixTopicForbiddingContext (/app/node_modules/@babel/parser/lib/index.js:12477:14)
+casinosm-frontend  |       at TypeScriptParserMixin.parseFunction (/app/node_modules/@babel/parser/lib/index.js:13520:10)

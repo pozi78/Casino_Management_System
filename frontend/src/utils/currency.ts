@@ -1,8 +1,19 @@
 
 export const formatCurrency = (amount: number | undefined | null): string => {
     if (amount === undefined || amount === null) return '-';
-    // Format to 2 decimal places always, with thousand separators, appending the symbol manually
-    return `${Number(amount).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+
+    // Manual formatting to ensure Spanish format (1.234,56)
+    // 1. Fixed to 2 decimals
+    const num = Number(amount);
+    const fixed = num.toFixed(2); // "1234.56"
+
+    // 2. Split integer and decimal parts
+    const [intPart, decPart] = fixed.split('.');
+
+    // 3. Add dots to integer part
+    const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+    return `${formattedInt},${decPart} €`;
 };
 
 export const getCurrencyClasses = (amount: number | undefined | null): string => {

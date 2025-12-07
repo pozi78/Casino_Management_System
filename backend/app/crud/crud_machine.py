@@ -153,6 +153,29 @@ class CRUDMaquina:
         db.add(db_obj)
         await db.commit()
         await db.refresh(db_obj)
+
+        # Handle Multipuesto Auto-Creation (Parent Container + Children)
+        # If marked as Multipuesto, generate child machines for revenue tracking
+        if obj_in.es_multipuesto and obj_in.numero_puesto and obj_in.numero_puesto > 0:
+            for i in range(1, obj_in.numero_puesto + 1):
+                child_name = f"{db_obj.nombre} {i}"
+                child = Maquina(
+                    salon_id=db_obj.salon_id,
+                    tipo_maquina_id=db_obj.tipo_maquina_id,
+                    grupo_id=db_obj.grupo_id,
+                    nombre=child_name,
+                    maquina_padre_id=db_obj.id,
+                    numero_puesto=i, # Seat Index
+                    es_multipuesto=False, # Child is single unit
+                    activo=True,
+                    fecha_alta=db_obj.fecha_alta,
+                    nombre_referencia_uorsa=f"{db_obj.nombre_referencia_uorsa or ''} {i}".strip(),
+                    numero_serie=f"{db_obj.numero_serie or ''}-{i}" if db_obj.numero_serie else None
+                )
+                db.add(child)
+            
+            await db.commit()
+
         return db_obj
 
     async def update(

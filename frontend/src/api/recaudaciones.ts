@@ -33,6 +33,10 @@ export interface RecaudacionMaquinaUpdate {
 export interface Recaudacion {
     id: number;
     salon_id: number;
+    salon?: {
+        id: number;
+        nombre: string;
+    };
     fecha_inicio: string;
     fecha_fin: string;
     fecha_cierre: string;
@@ -40,6 +44,9 @@ export interface Recaudacion {
     origen: string;
     referencia_fichero?: string;
     notas?: string;
+    total_tasas?: number;
+    depositos?: number;
+    otros_conceptos?: number;
     detalles?: RecaudacionMaquina[];
     total_neto?: number;
 }
@@ -60,6 +67,9 @@ export interface RecaudacionUpdate {
     fecha_cierre?: string;
     etiqueta?: string;
     notas?: string;
+    total_tasas?: number;
+    depositos?: number;
+    otros_conceptos?: number;
 }
 
 export const recaudacionApi = {
