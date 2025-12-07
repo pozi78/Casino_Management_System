@@ -17,6 +17,15 @@ class Recaudacion(Base):
     salon = relationship("Salon", back_populates="recaudaciones")
     detalles = relationship("RecaudacionMaquina", back_populates="recaudacion", cascade="all, delete-orphan")
 
+    @property
+    def total_neto(self):
+        if not self.detalles:
+            return 0
+        return sum(
+            (d.retirada_efectivo or 0) + (d.cajon or 0) - (d.pago_manual or 0) + (d.tasa_ajuste or 0)
+            for d in self.detalles
+        )
+
 class RecaudacionMaquina(Base):
     __tablename__ = "recaudacion_maquina"
     id = Column(Integer, primary_key=True, index=True)

@@ -27,9 +27,21 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 401) {
+        const status = error.response?.status;
+        const detail = error.response?.data?.detail;
+
+        // Auto-logout triggers
+        const isAuthError =
+            status === 401 ||
+            (status === 403 && detail === "Could not validate credentials") ||
+            (status === 400 && detail === "Inactive user") ||
+            (status === 404 && detail === "User not found");
+
+        if (isAuthError) {
             localStorage.removeItem('token');
-            // Optional: Redirect to login or handle logout
+            if (window.location.pathname !== '/login') {
+                window.location.href = '/login';
+            }
         }
         return Promise.reject(error);
     }

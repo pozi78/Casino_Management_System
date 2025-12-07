@@ -8,6 +8,8 @@ import Salones from './pages/Salones';
 import Maquinas from './pages/Maquinas';
 import Usuarios from './pages/Usuarios';
 import Configuracion from './pages/Configuracion';
+import Recaudaciones from './pages/Recaudaciones';
+import RecaudacionDetail from './pages/RecaudacionDetail';
 import Layout from './components/Layout';
 
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
@@ -34,6 +36,8 @@ export default function App() {
             <Route path="salones" element={<Salones />} />
             <Route path="maquinas" element={<Maquinas />} />
             <Route path="usuarios" element={<Usuarios />} />
+            <Route path="recaudaciones" element={<Recaudaciones />} />
+            <Route path="recaudaciones/:id" element={<RecaudacionDetail />} />
             <Route path="configuracion" element={<Configuracion />} />
           </Route>
         </Routes>
