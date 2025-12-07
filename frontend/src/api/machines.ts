@@ -5,7 +5,6 @@ import axiosInstance from './axios';
 export interface TipoMaquina {
     id: number;
     nombre: string;
-    codigo: string;
     tasa_semanal_base: number;
     tasa_por_puesto: boolean;
     descripcion?: string;
@@ -14,7 +13,6 @@ export interface TipoMaquina {
 
 export interface TipoMaquinaCreate {
     nombre: string;
-    codigo: string;
     tasa_semanal_base: number;
     tasa_por_puesto?: boolean;
     descripcion?: string;
@@ -25,7 +23,6 @@ export interface Maquina {
     id: number;
     salon_id: number;
     tipo_maquina_id: number;
-    codigo_interno: string;
     numero_serie?: string;
     maquina_padre_id?: number;
     numero_puesto?: number;
@@ -38,7 +35,6 @@ export interface Maquina {
 export interface MaquinaCreate {
     salon_id: number;
     tipo_maquina_id: number;
-    codigo_interno: string;
     numero_serie?: string;
     maquina_padre_id?: number;
     numero_puesto?: number;
@@ -51,7 +47,6 @@ export interface MaquinaCreate {
 export interface MaquinaUpdate {
     salon_id?: number;
     tipo_maquina_id?: number;
-    codigo_interno?: string;
     numero_serie?: string;
     maquina_padre_id?: number;
     numero_puesto?: number;

@@ -1,23 +1,59 @@
 version: '3.8'
 
 services:
-  db:
-    image: postgres:15-alpine
-    restart: always
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=salones_db
+  backend:
+    build: ./backend
+    container_name: casinosm-backend
     ports:
-      - "5432:5432"
+      - "7000:8000"
+    environment:
+      - DATABASE_URL=postgresql://userCasinoSM:postCasinoSM@database:7432/casinosm
+      - POSTGRES_SERVER=database
+      - POSTGRES_USER=userCasinoSM
+      - POSTGRES_PASSWORD=postCasinoSM
+      - POSTGRES_DB=casinosm
+    depends_on:
+      - database
+    volumes:
+      - ./backend:/app # Hot reload for dev
+    networks:
+      - botnet_dev
+
+  frontend:
+    build: ./frontend
+    container_name: casinosm-frontend
+    ports:
+      - "7173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - botnet_dev
+
+  database:
+    image: postgres:15-alpine
+    container_name: casinosm-database
+    ports:
+      - "7432:5432"
+    environment:
+      - POSTGRES_USER=userCasinoSM
+      - POSTGRES_PASSWORD=postCasinoSM
+      - POSTGRES_DB=casinosm
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
-  adminer:
-    image: adminer
-    restart: always
-    ports:
-      - "8080:8080"
+    networks:
+      - botnet_dev
 
 volumes:
   postgres_data:
+
+networks:
+  botnet_dev:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.21.0.0/24

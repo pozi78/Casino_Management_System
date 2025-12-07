@@ -6,7 +6,6 @@ class TipoMaquina(Base):
     __tablename__ = "tipo_maquina"
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String, nullable=False)
-    codigo = Column(String, unique=True, nullable=False)
     tasa_semanal_base = Column(Numeric(10, 2), nullable=False)
     tasa_por_puesto = Column(Boolean, default=False)
     descripcion = Column(String)
@@ -19,7 +18,6 @@ class Maquina(Base):
     id = Column(Integer, primary_key=True, index=True)
     salon_id = Column(Integer, ForeignKey("salon.id"), nullable=False)
     tipo_maquina_id = Column(Integer, ForeignKey("tipo_maquina.id"), nullable=False)
-    codigo_interno = Column(String, nullable=False)
     numero_serie = Column(String)
     maquina_padre_id = Column(Integer, ForeignKey("maquina.id"), nullable=True)
     numero_puesto = Column(Integer, nullable=True)

@@ -18,7 +18,6 @@ class CRUDTipoMaquina:
     async def create(self, db: AsyncSession, *, obj_in: TipoMaquinaCreate) -> TipoMaquina:
         db_obj = TipoMaquina(
             nombre=obj_in.nombre,
-            codigo=obj_in.codigo,
             tasa_semanal_base=obj_in.tasa_semanal_base,
             tasa_por_puesto=obj_in.tasa_por_puesto,
             descripcion=obj_in.descripcion,
@@ -78,7 +77,6 @@ class CRUDMaquina:
         db_obj = Maquina(
             salon_id=obj_in.salon_id,
             tipo_maquina_id=obj_in.tipo_maquina_id,
-            codigo_interno=obj_in.codigo_interno,
             numero_serie=obj_in.numero_serie,
             maquina_padre_id=obj_in.maquina_padre_id,
             numero_puesto=obj_in.numero_puesto,

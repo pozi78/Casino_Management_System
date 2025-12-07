@@ -7,7 +7,6 @@ from decimal import Decimal
 
 class TipoMaquinaBase(BaseModel):
     nombre: Optional[str] = None
-    codigo: Optional[str] = None
     tasa_semanal_base: Optional[Decimal] = None
     tasa_por_puesto: Optional[bool] = False
     descripcion: Optional[str] = None
@@ -15,7 +14,6 @@ class TipoMaquinaBase(BaseModel):
 
 class TipoMaquinaCreate(TipoMaquinaBase):
     nombre: str
-    codigo: str
     tasa_semanal_base: Decimal
 
 class TipoMaquinaUpdate(TipoMaquinaBase):
@@ -32,7 +30,6 @@ class TipoMaquina(TipoMaquinaBase):
 class MaquinaBase(BaseModel):
     salon_id: Optional[int] = None
     tipo_maquina_id: Optional[int] = None
-    codigo_interno: Optional[str] = None
     numero_serie: Optional[str] = None
     maquina_padre_id: Optional[int] = None
     numero_puesto: Optional[int] = None
@@ -44,7 +41,6 @@ class MaquinaBase(BaseModel):
 class MaquinaCreate(MaquinaBase):
     salon_id: int
     tipo_maquina_id: int
-    codigo_interno: str
 
 class MaquinaUpdate(MaquinaBase):
     pass
