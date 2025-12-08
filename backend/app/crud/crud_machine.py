@@ -196,6 +196,20 @@ class CRUDMaquina:
                 setattr(db_obj, field, update_data[field])
         
         db.add(db_obj)
+
+        # Logic to cascade activation/deactivation if this is a parent multipuesto
+        if db_obj.es_multipuesto and 'activo' in update_data:
+             target_status = update_data['activo']
+             # Fetch all children
+             result = await db.execute(select(Maquina).where(Maquina.maquina_padre_id == db_obj.id))
+             children = result.scalars().all()
+             for child in children:
+                 child.activo = target_status
+                 # Optional: sync fecha_baja if present in update_data
+                 if 'fecha_baja' in update_data:
+                     child.fecha_baja = update_data['fecha_baja']
+                 db.add(child)
+
         await db.commit()
         await db.refresh(db_obj)
         return db_obj

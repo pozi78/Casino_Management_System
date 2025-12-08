@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { recaudacionApi, type Recaudacion, type RecaudacionMaquina } from '../api/recaudaciones';
 import { MoneyInput } from '../components/MoneyInput';
-import { formatCurrency, getCurrencyClasses } from '../utils/currency';
+import { formatCurrency } from '../utils/currency';
 
 export default function RecaudacionDetail() {
     const { id } = useParams<{ id: string }>();

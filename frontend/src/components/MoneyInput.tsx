@@ -19,6 +19,7 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({ value, onChange, onBlur,
     // Sync internal value when value prop changes (only if not editing)
     useEffect(() => {
         if (!isEditing) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setInternalValue(value.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
         }
     }, [value, isEditing]);
@@ -74,8 +75,8 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({ value, onChange, onBlur,
                 return;
             }
 
-            let normalized = newVal.replace(',', '.');
-            let num = parseFloat(normalized);
+            const normalized = newVal.replace(',', '.');
+            const num = parseFloat(normalized);
             if (!isNaN(num)) {
                 onChange(num);
             }
@@ -116,8 +117,8 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({ value, onChange, onBlur,
                 }, 0);
 
                 // Trigger update
-                let normalized = newVal.replace(',', '.');
-                let num = parseFloat(normalized);
+                const normalized = newVal.replace(',', '.');
+                const num = parseFloat(normalized);
                 if (!isNaN(num)) onChange(num);
             }
         }

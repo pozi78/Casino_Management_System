@@ -9,7 +9,8 @@ from sqlalchemy.future import select
 from app.core.config import settings
 from app.core import security
 from app.db.session import get_db
-from app.models.user import Usuario
+from sqlalchemy.orm import joinedload
+from app.models.user import Usuario, UsuarioSalon
 from app.schemas.token import TokenPayload
 
 # OAuth2 scheme
@@ -32,8 +33,15 @@ async def get_current_user(
             detail="Could not validate credentials",
         )
     
-    result = await db.execute(select(Usuario).where(Usuario.id == int(token_data.sub)))
-    user = result.scalars().first()
+    # Eagerly load assigned salons and their salon details
+    result = await db.execute(
+        select(Usuario)
+        .options(
+            joinedload(Usuario.salones_asignados).joinedload(UsuarioSalon.salon)
+        )
+        .where(Usuario.id == int(token_data.sub))
+    )
+    user = result.scalars().unique().first()
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

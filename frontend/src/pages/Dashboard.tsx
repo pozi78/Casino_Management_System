@@ -7,7 +7,18 @@ import {
     ArrowUpRight
 } from 'lucide-react';
 
-const StatCard = ({ title, value, icon: Icon, trend, trendValue, color }: any) => (
+import type { LucideIcon } from 'lucide-react';
+
+interface StatCardProps {
+    title: string;
+    value: string | number;
+    icon: LucideIcon;
+    trend: 'up' | 'down';
+    trendValue: string;
+    color: string;
+}
+
+const StatCard = ({ title, value, icon: Icon, trend, trendValue, color }: StatCardProps) => (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
         <div className="flex items-start justify-between">
             <div>
@@ -28,7 +39,13 @@ const StatCard = ({ title, value, icon: Icon, trend, trendValue, color }: any) =
     </div>
 );
 
+import { useSalonFilter } from '../context/SalonFilterContext';
+
+// ... (StatCard component remains)
+
 export default function Dashboard() {
+    const { selectedSalonIds } = useSalonFilter();
+
     return (
         <div className="max-w-7xl mx-auto">
             <header className="mb-8">
@@ -56,10 +73,10 @@ export default function Dashboard() {
                 />
                 <StatCard
                     title="Salones Operativos"
-                    value="45"
+                    value={selectedSalonIds.length}
                     icon={MapPin}
                     trend="up"
-                    trendValue="+2"
+                    trendValue="Active"
                     color="bg-amber-500"
                 />
                 <StatCard

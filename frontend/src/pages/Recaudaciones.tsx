@@ -4,13 +4,18 @@ import { Plus, FileText, Trash2, X, AlertTriangle } from 'lucide-react';
 import { recaudacionApi, type Recaudacion, type RecaudacionCreate } from '../api/recaudaciones';
 import { salonesApi, type Salon } from '../api/salones';
 import { formatCurrency, getCurrencyClasses } from '../utils/currency';
+import { useSalonFilter } from '../context/SalonFilterContext';
 
 export default function Recaudaciones() {
     const navigate = useNavigate();
+    const { selectedSalonIds } = useSalonFilter();
     const [recaudaciones, setRecaudaciones] = useState<Recaudacion[]>([]);
     const [salones, setSalons] = useState<Salon[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+
+    // Filter recaudaciones
+    const filteredRecaudaciones = recaudaciones.filter(rec => selectedSalonIds.includes(rec.salon_id));
 
     // Delete Modal State
     const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -96,14 +101,14 @@ export default function Recaudaciones() {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Recaudaciones</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">Recaudaciones</h1>
                     <p className="text-gray-500">Gestión de recaudaciones y lecturas</p>
                 </div>
                 <button
                     onClick={() => setShowModal(true)}
-                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition-colors"
+                    className="flex items-center justify-center px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-lg hover:from-emerald-700 hover:to-emerald-600 shadow-lg shadow-emerald-500/20 transition-all font-medium"
                 >
-                    <Plus size={20} />
+                    <Plus size={20} className="mr-2" />
                     Nueva Recaudación
                 </button>
             </div>
@@ -127,7 +132,7 @@ export default function Recaudaciones() {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {recaudaciones.map((rec) => (
+                            {filteredRecaudaciones.map((rec) => (
                                 <tr key={rec.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/recaudaciones/${rec.id}`)}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">#{rec.id}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">

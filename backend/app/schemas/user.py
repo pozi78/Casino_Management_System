@@ -24,9 +24,20 @@ class UserInDBBase(UserBase):
     class Config:
         from_attributes = True
 
+from .salon import Salon
+
 # Additional properties to return via API
+class UsuarioSalon(BaseModel):
+    salon_id: int
+    puede_ver: bool
+    puede_editar: bool
+    salon: Optional[Salon] = None
+
+    class Config:
+        from_attributes = True
+
 class User(UserInDBBase):
-    pass
+    salones_asignados: List[UsuarioSalon] = []
 
 # Additional properties stored in DB
 class UserInDB(UserInDBBase):

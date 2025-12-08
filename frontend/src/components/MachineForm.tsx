@@ -24,6 +24,7 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
         numero_serie: '',
         es_multipuesto: false,
         numero_puesto: 0,
+        maquina_padre_id: undefined,
         tasa_semanal_override: 0,
         observaciones: '',
         activo: true
@@ -68,6 +69,7 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
                 numero_serie: initialData.numero_serie || '',
                 es_multipuesto: initialData.es_multipuesto,
                 numero_puesto: initialData.numero_puesto || 0,
+                maquina_padre_id: initialData.maquina_padre_id,
                 tasa_semanal_override: initialData.tasa_semanal_override || 0,
                 observaciones: initialData.observaciones || '',
                 activo: initialData.activo
@@ -196,24 +198,24 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
                             onChange={(e) => setFormData({ ...formData, es_multipuesto: e.target.checked })}
                         />
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                        <span className="ml-3 text-sm font-medium text-gray-700">Es Multipuesto</span>
+                        <span className="ml-3 text-sm font-medium text-gray-700">Es Multipuesto (Padre)</span>
                     </label>
                 </div>
 
-                {formData.es_multipuesto && (
+                {(formData.es_multipuesto || formData.maquina_padre_id) && (
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                            {!initialData ? "Cantidad de Puestos (Auto-generar)" : "Número Puesto"}
+                            {!initialData || formData.maquina_padre_id ? "Número Puesto" : "Cantidad de Puestos (Auto-generar)"}
                         </label>
                         <input
                             type="number"
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
                             value={formData.numero_puesto || ''}
                             onChange={(e) => setFormData({ ...formData, numero_puesto: parseInt(e.target.value) || 0 })}
-                            placeholder={!initialData ? "Ej. 3 (Creará 3 máquinas)" : "Ej. 1"}
+                            placeholder={(!initialData && !formData.maquina_padre_id) ? "Ej. 3 (Creará 3 máquinas)" : "Ej. 1"}
                             min={1}
                         />
-                        {!initialData && (
+                        {(!initialData && !formData.maquina_padre_id) && (
                             <p className="text-xs text-gray-500 mt-1">Se crearán {formData.numero_puesto || 0} máquinas vinculadas.</p>
                         )}
                     </div>

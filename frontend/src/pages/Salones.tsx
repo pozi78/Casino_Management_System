@@ -5,11 +5,14 @@ import type { Salon, SalonCreate, SalonUpdate } from '../api/salones';
 import Modal from '../components/Modal';
 import SalonForm from '../components/SalonForm';
 
+import { useSalonFilter } from '../context/SalonFilterContext';
+
 export default function Salones() {
     const [salones, setSalones] = useState<Salon[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const { selectedSalonIds } = useSalonFilter();
 
     // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -76,6 +79,11 @@ export default function Salones() {
 
     const filteredSalones = salones.filter(salon => {
         if (!salon) return false;
+
+        // Global Filter
+        if (!selectedSalonIds.includes(salon.id)) return false;
+
+        // Search Term
         const term = searchTerm.toLowerCase();
         const nameMatch = salon.nombre ? salon.nombre.toLowerCase().includes(term) : false;
         return nameMatch;

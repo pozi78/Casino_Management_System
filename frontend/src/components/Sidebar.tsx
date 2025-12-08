@@ -11,6 +11,7 @@ import {
     ChevronRight,
     FileText
 } from 'lucide-react';
+import { useSalonFilter } from '../context/SalonFilterContext';
 import { useAuth } from '../context/AuthContext';
 import { SlotMachineIcon } from './Icons';
 
@@ -21,6 +22,7 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
     const { logout } = useAuth();
+    const { availableSalons, selectedSalonIds, toggleSalon, selectAll, deselectAll } = useSalonFilter();
 
     const navItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -77,6 +79,51 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
                         {isOpen && <span>{item.label}</span>}
                     </NavLink>
                 ))}
+
+                {/* Salon Filter Section */}
+                {isOpen && availableSalons.length > 0 && (
+                    <div className="mt-8 px-3">
+                        <div className="flex items-center justify-between mb-3 px-1">
+                            <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
+                                Filtrar Salones
+                            </h3>
+                            <button
+                                onClick={selectedSalonIds.length === availableSalons.length ? deselectAll : selectAll}
+                                className="text-[10px] text-emerald-300 hover:text-white underline cursor-pointer"
+                            >
+                                {selectedSalonIds.length === availableSalons.length ? 'Ninguno' : 'Todos'}
+                            </button>
+                        </div>
+                        <div className="space-y-2">
+                            {availableSalons.map(salon => (
+                                <label key={salon.id} className="flex items-center space-x-3 cursor-pointer group p-1.5 rounded-lg hover:bg-emerald-800/20 transition-colors">
+                                    <div className={`
+                                        w-4 h-4 rounded border flex items-center justify-center transition-colors
+                                        ${selectedSalonIds.includes(salon.id)
+                                            ? 'bg-[#F59E0B] border-[#F59E0B]'
+                                            : 'border-emerald-600 group-hover:border-emerald-400'
+                                        }
+                                    `}>
+                                        {selectedSalonIds.includes(salon.id) && (
+                                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        )}
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        className="hidden"
+                                        checked={selectedSalonIds.includes(salon.id)}
+                                        onChange={() => toggleSalon(salon.id)}
+                                    />
+                                    <span className={`text-sm ${selectedSalonIds.includes(salon.id) ? 'text-white' : 'text-emerald-200/70'}`}>
+                                        {salon.nombre}
+                                    </span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </nav>
 
             {/* User Section / Logout */}

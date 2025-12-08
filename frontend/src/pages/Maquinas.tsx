@@ -8,6 +8,7 @@ import Modal from '../components/Modal';
 import MachineForm from '../components/MachineForm';
 import MachineTypeForm from '../components/MachineTypeForm';
 import { SlotMachineIcon, RouletteIcon } from '../components/Icons';
+import { useSalonFilter } from '../context/SalonFilterContext';
 
 type Tab = 'inventory' | 'types';
 
@@ -15,15 +16,17 @@ export default function Maquinas() {
     const [activeTab, setActiveTab] = useState<Tab>('inventory');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
+    const { selectedSalonIds } = useSalonFilter();
 
-    // Data
     // Data
     const [machines, setMachines] = useState<Maquina[]>([]);
     const [types, setTypes] = useState<TipoMaquina[]>([]);
     const [salons, setSalons] = useState<Salon[]>([]);
 
+    // Filtered Data
+    const filteredSalons = salons.filter(s => selectedSalonIds.includes(s.id));
+
     // State for Collapsible UI
-    // State for Collapsible UI (Default: Collapsed/Empty)
     const [expandedSalons, setExpandedSalons] = useState<Record<number, boolean>>({});
     const [expandedMultipuestos, setExpandedMultipuestos] = useState<Record<number, boolean>>({});
 
@@ -72,17 +75,13 @@ export default function Maquinas() {
 
     // --- Type Handlers ---
     const handleSaveType = async (data: TipoMaquinaCreate) => {
-        try {
-            if (editingType) {
-                alert("Edición de tipos no implementada en API aún, solo creación.");
-                return;
-            }
-            await machinesApi.createType(data);
-            await fetchData();
-            setIsTypeModalOpen(false);
-        } catch (err) {
-            throw err;
+        if (editingType) {
+            alert("Edición de tipos no implementada en API aún, solo creación.");
+            return;
         }
+        await machinesApi.createType(data);
+        await fetchData();
+        setIsTypeModalOpen(false);
     };
 
     const handleOpenTypeModal = (type?: TipoMaquina) => {
@@ -92,17 +91,13 @@ export default function Maquinas() {
 
     // --- Machine Handlers ---
     const handleSaveMachine = async (data: MaquinaCreate) => {
-        try {
-            if (editingMachine) {
-                await machinesApi.update(editingMachine.id, data);
-            } else {
-                await machinesApi.create(data);
-            }
-            await fetchData();
-            setIsMachineModalOpen(false);
-        } catch (err) {
-            throw err;
+        if (editingMachine) {
+            await machinesApi.update(editingMachine.id, data);
+        } else {
+            await machinesApi.create(data);
         }
+        await fetchData();
+        setIsMachineModalOpen(false);
     };
 
     const handleDeleteMachine = async (id: number) => {
@@ -110,7 +105,7 @@ export default function Maquinas() {
         try {
             await machinesApi.delete(id);
             await fetchData();
-        } catch (err) {
+        } catch {
             alert('Error al eliminar');
         }
     };
@@ -158,7 +153,7 @@ export default function Maquinas() {
     const renderMachineCards = (machineList: Maquina[], childrenMap: Record<number, Maquina[]>) => (
         machineList.map(m => {
             const children = childrenMap[m.id];
-            const hasChildren = children && children.length > 0;
+
             // Note: If es_multipuesto is true, treat as container even if children array empty momentarily
             if (m.es_multipuesto) {
                 const isExpanded = expandedMultipuestos[m.id]; // Default collapsed if undefined
@@ -167,7 +162,7 @@ export default function Maquinas() {
                     <div key={m.id} className="border border-indigo-100 rounded-lg overflow-hidden bg-white mb-2 shadow-sm">
                         {/* Parent Header */}
                         <div
-                            className="bg-indigo-50/40 p-3 flex items-center justify-between cursor-pointer hover:bg-indigo-50 transition-colors select-none"
+                            className="group bg-indigo-50/40 p-3 flex items-center justify-between cursor-pointer hover:bg-indigo-50 transition-colors select-none"
                             onClick={() => toggleMultipuesto(m.id)}
                         >
                             <div className="flex items-center gap-2 sm:gap-4 flex-1">
@@ -195,8 +190,13 @@ export default function Maquinas() {
                             </div>
 
                             <div className="flex items-center gap-2">
-                                <button onClick={(e) => { e.stopPropagation(); handleOpenMachineModal(m); }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"><Edit size={16} /></button>
-                                <button onClick={(e) => { e.stopPropagation(); handleDeleteMachine(m.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${m.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                                    {m.activo ? 'Activo' : 'Baja'}
+                                </span>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={(e) => { e.stopPropagation(); handleOpenMachineModal(m); }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"><Edit size={16} /></button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteMachine(m.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"><Trash2 size={16} /></button>
+                                </div>
                             </div>
                         </div>
 
@@ -209,13 +209,22 @@ export default function Maquinas() {
                                             <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full"></div>
                                             <div>
                                                 <span className="font-medium text-gray-700">{child.nombre}</span>
-                                                <span className="ml-2 text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">Puesto {child.numero_puesto}</span>
+                                                <span className="ml-2 text-xs text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 font-medium">
+                                                    Puesto {child.numero_puesto || '?'}
+                                                </span>
                                             </div>
                                         </div>
-                                        {/* Child Actions */}
-                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={() => handleOpenMachineModal(child)} className="p-1 text-gray-400 hover:text-blue-600"><Edit size={14} /></button>
-                                            <button onClick={() => handleDeleteMachine(child.id)} className="p-1 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
+
+                                        <div className="flex items-center gap-3">
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${child.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                                                {child.activo ? 'Activo' : 'Baja'}
+                                            </span>
+
+                                            {/* Child Actions */}
+                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => handleOpenMachineModal(child)} className="p-1 text-gray-400 hover:text-blue-600"><Edit size={14} /></button>
+                                                <button onClick={() => handleDeleteMachine(child.id)} className="p-1 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
@@ -331,7 +340,7 @@ export default function Maquinas() {
                 <>
                     {activeTab === 'inventory' && (
                         <div className="space-y-6">
-                            {salons.map(salon => {
+                            {filteredSalons.map(salon => {
                                 const salonMachines = machines.filter(m => m.salon_id === salon.id);
                                 if (salonMachines.length === 0) return null;
 

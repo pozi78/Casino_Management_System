@@ -32,12 +32,13 @@ export default function Login() {
             console.log("Login success:", response.data);
             login(response.data.access_token);
             navigate('/');
-        } catch (err: any) {
             console.error("Login Error:", err);
-            if (err.response) {
-                setError(err.response.data.detail || 'Credenciales incorrectas');
-                setDebugInfo(`Status: ${err.response.status}`);
-            } else if (err.request) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const errorObj = err as any;
+            if (errorObj.response) {
+                setError(errorObj.response.data.detail || 'Credenciales incorrectas');
+                setDebugInfo(`Status: ${errorObj.response.status}`);
+            } else if (errorObj.request) {
                 setError('No se pudo conectar con el servidor.');
                 setDebugInfo(`Network Error - Unreachable at ${api.defaults.baseURL}`);
             } else {

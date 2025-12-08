@@ -1,0 +1,67 @@
+
+> frontend@0.0.0 lint
+> eslint .
+
+
+/app/src/components/MachineForm.tsx
+  59:8   warning  React Hook useEffect has a missing dependency: 'initialData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  97:23  error    Unexpected any. Specify a different type                                                                        @typescript-eslint/no-explicit-any
+
+/app/src/components/MachineGroupForm.tsx
+  36:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/app/src/components/MachineTypeForm.tsx
+  42:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/app/src/components/MoneyInput.tsx
+   22:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/src/components/MoneyInput.tsx:22:13
+  20 |     useEffect(() => {
+  21 |         if (!isEditing) {
+> 22 |             setInternalValue(value.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+     |             ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  23 |         }
+  24 |     }, [value, isEditing]);
+  25 |  react-hooks/set-state-in-effect
+   77:17  error  'normalized' is never reassigned. Use 'const' instead                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    prefer-const
+   78:17  error  'num' is never reassigned. Use 'const' instead                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           prefer-const
+  119:21  error  'normalized' is never reassigned. Use 'const' instead                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    prefer-const
+  120:21  error  'num' is never reassigned. Use 'const' instead                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           prefer-const
+
+/app/src/components/SalonForm.tsx
+  18:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  37:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/app/src/context/AuthContext.tsx
+  82:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/app/src/context/SalonFilterContext.tsx
+  26:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/src/context/SalonFilterContext.tsx:26:13
+  24 |         if (availableSalons.length > 0) {
+  25 |             // Default: Select all
+> 26 |             setSelectedSalonIds(availableSalons.map(s => s.id));
+     |             ^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  27 |         } else {
+  28 |             setSelectedSalonIds([]);
+  29 |         }  react-hooks/set-state-in-effect
+  30:8   warning  React Hook useEffect has a missing dependency: 'availableSalons'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  react-hooks/exhaustive-deps
+  69:14  error    Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      react-refresh/only-export-components
+
+✖ 15 problems (13 errors, 2 warnings)
+  4 errors and 0 warnings potentially fixable with the `--fix` option.
+
