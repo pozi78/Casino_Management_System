@@ -6,6 +6,7 @@ import Modal from '../components/Modal';
 import SalonForm from '../components/SalonForm';
 
 import { useSalonFilter } from '../context/SalonFilterContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function Salones() {
     const [salones, setSalones] = useState<Salon[]>([]);
@@ -13,6 +14,7 @@ export default function Salones() {
     const [error, setError] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const { selectedSalonIds } = useSalonFilter();
+    const { refreshUser } = useAuth();
 
     // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -45,6 +47,8 @@ export default function Salones() {
             }
             // Refetch to ensure we have the correct server state
             await fetchSalones();
+            // Refresh user profile to update permissions/filters
+            await refreshUser();
             setIsModalOpen(false);
         } catch (err) {
             console.error("Error saving salon:", err);

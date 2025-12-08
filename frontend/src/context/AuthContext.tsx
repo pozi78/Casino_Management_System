@@ -30,6 +30,7 @@ interface AuthContextType {
     logout: () => void;
     isAuthenticated: boolean;
     loading: boolean;
+    refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,26 +40,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchUser = async () => {
-            if (token) {
-                localStorage.setItem('token', token);
-                try {
-                    const response = await axiosInstance.get('/users/me');
-                    setUser(response.data);
-                } catch (error) {
-                    console.error("Failed to fetch user:", error);
-                    setToken(null);
-                    localStorage.removeItem('token');
-                    setUser(null);
-                }
-            } else {
+    const fetchUser = async () => {
+        if (token) {
+            localStorage.setItem('token', token);
+            try {
+                const response = await axiosInstance.get('/users/me');
+                setUser(response.data);
+            } catch (error) {
+                console.error("Failed to fetch user:", error);
+                setToken(null);
                 localStorage.removeItem('token');
                 setUser(null);
             }
-            setLoading(false);
-        };
+        } else {
+            localStorage.removeItem('token');
+            setUser(null);
+        }
+        setLoading(false);
+    };
 
+    useEffect(() => {
         fetchUser();
     }, [token]);
 
@@ -74,7 +75,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ token, user, login, logout, isAuthenticated: !!token, loading }}>
+        <AuthContext.Provider value={{ token, user, login, logout, isAuthenticated: !!token, loading, refreshUser: fetchUser }}>
             {children}
         </AuthContext.Provider>
     );

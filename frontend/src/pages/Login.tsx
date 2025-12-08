@@ -31,7 +31,9 @@ export default function Login() {
 
             console.log("Login success:", response.data);
             login(response.data.access_token);
+            login(response.data.access_token);
             navigate('/');
+        } catch (err) {
             console.error("Login Error:", err);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const errorObj = err as any;
