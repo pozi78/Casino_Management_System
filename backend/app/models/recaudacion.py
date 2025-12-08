@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, ForeignKey, Numeric, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, Numeric, UniqueConstraint, DateTime
 from sqlalchemy.orm import relationship
 from app.db.base_class import Base
 
@@ -6,8 +6,8 @@ class Recaudacion(Base):
     __tablename__ = "recaudacion"
     id = Column(Integer, primary_key=True, index=True)
     salon_id = Column(Integer, ForeignKey("salon.id"), nullable=False)
-    fecha_inicio = Column(Date, nullable=False)
-    fecha_fin = Column(Date, nullable=False)
+    fecha_inicio = Column(DateTime, nullable=False)
+    fecha_fin = Column(DateTime, nullable=False)
     fecha_cierre = Column(Date, nullable=False)
     etiqueta = Column(String)
     origen = Column(String) # manual, importacion
@@ -50,6 +50,7 @@ class RecaudacionMaquina(Base):
     id = Column(Integer, primary_key=True, index=True)
     recaudacion_id = Column(Integer, ForeignKey("recaudacion.id"), nullable=False)
     maquina_id = Column(Integer, ForeignKey("maquina.id"), nullable=False)
+    puesto_id = Column(Integer, ForeignKey("puesto.id"), nullable=True)
 
     retirada_efectivo = Column(Numeric(12, 2), default=0)
     cajon = Column(Numeric(12, 2), default=0)
@@ -63,9 +64,10 @@ class RecaudacionMaquina(Base):
 
     recaudacion = relationship("Recaudacion", back_populates="detalles")
     maquina = relationship("Maquina", back_populates="recaudaciones_maquina")
+    puesto = relationship("Puesto")
 
     __table_args__ = (
-        UniqueConstraint('recaudacion_id', 'maquina_id', name='uq_recaudacion_maquina'),
+        UniqueConstraint('recaudacion_id', 'puesto_id', name='uq_recaudacion_puesto'),
     )
 
 class TipoConceptoExtra(Base):

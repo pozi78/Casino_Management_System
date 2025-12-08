@@ -46,9 +46,16 @@ export default function RecaudacionDetail() {
             const data = await recaudacionApi.getById(recId);
             // Sort details by machine name
             if (data.detalles) {
-                data.detalles.sort((a: RecaudacionMaquina, b: RecaudacionMaquina) =>
-                    (a.maquina?.nombre || '').toString().localeCompare((b.maquina?.nombre || '').toString())
-                );
+                // Sort details by machine name then puesto
+                if (data.detalles) {
+                    data.detalles.sort((a: RecaudacionMaquina, b: RecaudacionMaquina) => {
+                        const nameA = (a.maquina?.nombre || '').toString();
+                        const nameB = (b.maquina?.nombre || '').toString();
+                        const nameComp = nameA.localeCompare(nameB);
+                        if (nameComp !== 0) return nameComp;
+                        return (a.puesto?.numero_puesto || 0) - (b.puesto?.numero_puesto || 0);
+                    });
+                }
             }
             setRecaudacion(data);
         } catch (err) {
@@ -112,9 +119,17 @@ export default function RecaudacionDetail() {
     if (error || !recaudacion) return <div className="p-8 text-center text-red-600">{error || "No encontrado"}</div>;
 
     // Date Helpers
+    // Date Helpers
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
-        return date.toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).toUpperCase();
+        return date.toLocaleDateString('es-ES', {
+            weekday: 'long',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        }).toUpperCase();
     };
 
     const getDaysDifference = (start: string, end: string) => {
@@ -215,6 +230,7 @@ export default function RecaudacionDetail() {
                                 <tr key={detail.id} className="hover:bg-gray-50">
                                     <td className="px-2 py-1 whitespace-nowrap font-medium text-gray-900 uppercase">
                                         {detail.maquina?.nombre}
+                                        {detail.puesto && <span className="text-gray-600"> - {detail.puesto.descripcion}</span>}
                                         <div className="text-xs text-gray-400">
                                             {detail.maquina?.tipo_maquina?.nombre}
                                             {detail.maquina?.numero_serie ? ` - ${detail.maquina.numero_serie}` : ''}

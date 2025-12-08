@@ -1,9 +1,9 @@
 from typing import List, Optional
 from sqlalchemy.future import select
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.recaudacion import Recaudacion, RecaudacionMaquina
-from app.models.machine import Maquina
+from app.models.machine import Maquina, Puesto
 from app.schemas.recaudacion import (
     RecaudacionCreate, RecaudacionUpdate,
     RecaudacionMaquinaCreate, RecaudacionMaquinaUpdate
@@ -16,8 +16,14 @@ class CRUDRecaudacion:
             select(Recaudacion)
             .options(
                 joinedload(Recaudacion.detalles)
-                .joinedload(RecaudacionMaquina.maquina)
-                .joinedload(Maquina.tipo_maquina),
+                .options(
+                    joinedload(RecaudacionMaquina.maquina)
+                    .options(
+                        joinedload(Maquina.tipo_maquina),
+                        selectinload(Maquina.puestos)
+                    ),
+                    joinedload(RecaudacionMaquina.puesto)
+                ),
                 joinedload(Recaudacion.salon)
             )
             .where(Recaudacion.id == id)
@@ -31,13 +37,25 @@ class CRUDRecaudacion:
         if salon_id:
             query = query.where(Recaudacion.salon_id == salon_id)
         # Order by start date descending usually
-        query = query.order_by(Recaudacion.fecha_inicio.desc()).offset(skip).limit(limit)
+        query = query.order_by(Recaudacion.fecha_fin.desc()).offset(skip).limit(limit)
         result = await db.execute(query)
         return result.unique().scalars().all()
 
     async def create_with_initial_details(
         self, db: AsyncSession, *, obj_in: RecaudacionCreate
     ) -> Recaudacion:
+        # Check for Overlap
+        stmt = select(Recaudacion).where(
+            Recaudacion.salon_id == obj_in.salon_id
+        )
+        existing_list = (await db.execute(stmt)).scalars().all()
+        
+        for existing in existing_list:
+            # Overlap Logic: (Start1 < End2) AND (End1 > Start2)
+            # Continuity Exception: If NewStart == OldEnd, it's allowed.
+            if (obj_in.fecha_inicio < existing.fecha_fin) and (obj_in.fecha_fin > existing.fecha_inicio):
+                 raise ValueError(f"Solapamiento detectado. Intentando crear: {obj_in.fecha_inicio} - {obj_in.fecha_fin}. Conflictúa con Recaudación ID {existing.id} (Salon {existing.salon_id}): {existing.fecha_inicio} - {existing.fecha_fin}")
+
         # 1. Create Recaudacion Header
         db_obj = Recaudacion(
             salon_id=obj_in.salon_id,
@@ -53,51 +71,51 @@ class CRUDRecaudacion:
         await db.flush() # Get ID
 
         # Calculate days for tax (fin - inicio)
-        # Days Included - 1 is equivalent to simple difference (EndDate - StartDate)
-        # e.g. 1st to 2nd = 2 inclusive days - 1 = 1 day tax.
-        # (2nd - 1st).days = 1.
         days_diff = (obj_in.fecha_fin - obj_in.fecha_inicio).days
         if days_diff < 0:
             days_diff = 0
 
-        # 2. Fetch Active Machines with Type loaded
-        stmt = select(Maquina).options(joinedload(Maquina.tipo_maquina)).where(
+        # 2. Fetch Active Puestos with Machine info joined
+        stmt = select(Puesto).join(Maquina).where(
             Maquina.salon_id == obj_in.salon_id,
-            Maquina.activo == True,
-            Maquina.es_multipuesto == False
-        )
+            Puesto.activo == True,
+            Puesto.eliminado == False, 
+            Maquina.eliminada == False 
+        ).options(joinedload(Puesto.maquina).joinedload(Maquina.tipo_maquina))
+        
         result = await db.execute(stmt)
-        machines = result.scalars().all()
+        puestos = result.scalars().all()
 
         # 3. Create Details
-        for machine in machines:
+        for puesto in puestos:
             # Tasa Logic
             tasa_base = 0
             detalle_tasa = "Sin Tasa"
             
-            # Determine Weekly Rate
-            weekly_rate = 0
+            # Determine Weekly Rate from Puesto
+            weekly_rate = puesto.tasa_semanal or 0
             
-            if machine.tasa_semanal_override is not None and machine.tasa_semanal_override > 0:
-                weekly_rate = machine.tasa_semanal_override
-                detalle_tasa = "Override Maquina"
-            elif machine.tipo_maquina and machine.tipo_maquina.tasa_semanal_orientativa:
-                weekly_rate = machine.tipo_maquina.tasa_semanal_orientativa
-                detalle_tasa = f"Base Tipo: {machine.tipo_maquina.nombre}"
+            # Fallback legacy logic if 0? 
+            if weekly_rate == 0:
+                 if puesto.maquina.tasa_semanal_override:
+                     weekly_rate = puesto.maquina.tasa_semanal_override
+                 elif puesto.maquina.tipo_maquina and puesto.maquina.tipo_maquina.tasa_semanal_orientativa:
+                     weekly_rate = puesto.maquina.tipo_maquina.tasa_semanal_orientativa
 
+            if weekly_rate > 0:
+                 detalle_tasa = "Tasa Calculada"
 
-            
             # Calculate Pro-rated
-            # Rate = (Weekly / 7) * days
             if weekly_rate > 0 and days_diff > 0:
                 daily_rate = float(weekly_rate) / 7.0
                 tasa_base = daily_rate * days_diff
             
             detail = RecaudacionMaquina(
                 recaudacion_id=db_obj.id,
-                maquina_id=machine.id,
+                maquina_id=puesto.maquina_id,
+                puesto_id=puesto.id,
                 tasa_calculada=tasa_base,
-                tasa_final=tasa_base, # Default to calculated
+                tasa_final=tasa_base, 
                 detalle_tasa=detalle_tasa,
                 retirada_efectivo=0,
                 cajon=0,

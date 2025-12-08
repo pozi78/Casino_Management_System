@@ -30,6 +30,9 @@ export default function Recaudaciones() {
         notas: ''
     });
 
+    const [startTime, setStartTime] = useState('06:00');
+    const [endTime, setEndTime] = useState('06:00');
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -49,16 +52,59 @@ export default function Recaudaciones() {
         }
     };
 
+    const handleSalonChange = async (salonId: number) => {
+        setFormData(prev => ({ ...prev, salon_id: salonId }));
+        if (salonId === 0) return;
+
+        try {
+            const lastDateIso = await recaudacionApi.getLastDate(salonId);
+            const today = new Date().toISOString().split('T')[0];
+
+            let newStartDate = '';
+            let newStartTime = '06:00';
+
+            if (lastDateIso && typeof lastDateIso === 'string') {
+                // If last info exists, use its End Date as Start Date
+                const lastDateObj = new Date(lastDateIso);
+                newStartDate = lastDateObj.toISOString().split('T')[0];
+                const hours = lastDateObj.getHours().toString().padStart(2, '0');
+                const minutes = lastDateObj.getMinutes().toString().padStart(2, '0');
+                newStartTime = `${hours}:${minutes}`;
+            }
+
+            setFormData(prev => ({
+                ...prev,
+                salon_id: salonId,
+                fecha_inicio: newStartDate,
+                fecha_fin: today,
+                fecha_cierre: today
+            }));
+            setStartTime(newStartTime);
+            setEndTime('06:00');
+        } catch (err) {
+            console.error("Error fetching last date", err);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const newRec = await recaudacionApi.create(formData);
+            const startDateTime = `${formData.fecha_inicio}T${startTime}:00`;
+            const endDateTime = `${formData.fecha_fin}T${endTime}:00`;
+
+            const payload = {
+                ...formData,
+                fecha_inicio: startDateTime,
+                fecha_fin: endDateTime
+            };
+
+            const newRec = await recaudacionApi.create(payload);
             setRecaudaciones([newRec, ...recaudaciones]);
             setShowModal(false);
-            // Optional: Navigate immediately to detail
             navigate(`/recaudaciones/${newRec.id}`);
         } catch (error) {
             console.error("Error creating recaudacion:", error);
+            alert("Error al crear la recaudación. Verifique que no haya solapamiento de fechas.");
         }
     };
 
@@ -78,15 +124,15 @@ export default function Recaudaciones() {
 
     const getSalonName = (id: number) => salones.find(s => s.id === id)?.nombre || 'Unknown';
 
-    // Helper to format date like "Lun 20/03/2024"
+    // Helper to format date like "Lun 20/03/2024 06:00"
     const formatDate = (dateStr: string) => {
         if (!dateStr) return '';
         const date = new Date(dateStr);
-        // capitalize first letter of day
         const dayName = date.toLocaleDateString('es-ES', { weekday: 'short' });
         const dayNameCap = dayName.charAt(0).toUpperCase() + dayName.slice(1);
-        const datePart = date.toLocaleDateString('es-ES');
-        return `${dayNameCap} ${datePart}`;
+        const datePart = date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const timePart = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        return `${dayNameCap} ${datePart} ${timePart}`;
     };
 
     const getDaysDiff = (start: string, end: string) => {
@@ -123,7 +169,7 @@ export default function Recaudaciones() {
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salón</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fechas (Días)</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Neto Salón</th>
@@ -134,17 +180,17 @@ export default function Recaudaciones() {
                         <tbody className="bg-white divide-y divide-gray-200">
                             {filteredRecaudaciones.map((rec) => (
                                 <tr key={rec.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/recaudaciones/${rec.id}`)}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">#{rec.id}</td>
+
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                         {getSalonName(rec.salon_id)}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         <div className="flex flex-col">
-                                            <span className="font-medium text-gray-900">
-                                                {formatDate(rec.fecha_inicio)} - {formatDate(rec.fecha_fin)}
+                                            <span className="text-lg font-bold text-gray-900">
+                                                {formatDate(rec.fecha_fin)}
                                             </span>
-                                            <span className="text-xs text-gray-400">
-                                                ({getDaysDiff(rec.fecha_inicio, rec.fecha_fin)} días)
+                                            <span className="text-xs text-gray-500">
+                                                Recaudación anterior: {formatDate(rec.fecha_inicio)} ({getDaysDiff(rec.fecha_inicio, rec.fecha_fin)} días)
                                             </span>
                                         </div>
                                     </td>
@@ -208,7 +254,7 @@ export default function Recaudaciones() {
                                     required
                                     className="w-full border rounded-lg p-2"
                                     value={formData.salon_id}
-                                    onChange={(e) => setFormData({ ...formData, salon_id: Number(e.target.value) })}
+                                    onChange={(e) => handleSalonChange(Number(e.target.value))}
                                 >
                                     <option value={0}>Seleccione un salón</option>
                                     {salones.map(s => (
@@ -216,26 +262,44 @@ export default function Recaudaciones() {
                                     ))}
                                 </select>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Inicio</label>
-                                    <input
-                                        type="date"
-                                        required
-                                        className="w-full border rounded-lg p-2"
-                                        value={formData.fecha_inicio}
-                                        onChange={(e) => setFormData({ ...formData, fecha_inicio: e.target.value })}
-                                    />
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="date"
+                                            required
+                                            className="w-full border rounded-lg p-2"
+                                            value={formData.fecha_inicio}
+                                            onChange={(e) => setFormData({ ...formData, fecha_inicio: e.target.value })}
+                                        />
+                                        <input
+                                            type="time"
+                                            required
+                                            className="w-24 border rounded-lg p-2"
+                                            value={startTime}
+                                            onChange={(e) => setStartTime(e.target.value)}
+                                        />
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Fin</label>
-                                    <input
-                                        type="date"
-                                        required
-                                        className="w-full border rounded-lg p-2"
-                                        value={formData.fecha_fin}
-                                        onChange={(e) => setFormData({ ...formData, fecha_fin: e.target.value })}
-                                    />
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="date"
+                                            required
+                                            className="w-full border rounded-lg p-2"
+                                            value={formData.fecha_fin}
+                                            onChange={(e) => setFormData({ ...formData, fecha_fin: e.target.value })}
+                                        />
+                                        <input
+                                            type="time"
+                                            required
+                                            className="w-24 border rounded-lg p-2"
+                                            value={endTime}
+                                            onChange={(e) => setEndTime(e.target.value)}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                             <div>

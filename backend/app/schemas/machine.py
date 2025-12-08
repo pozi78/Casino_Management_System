@@ -41,7 +41,29 @@ class TipoMaquinaUpdate(TipoMaquinaBase):
 
 class TipoMaquina(TipoMaquinaBase):
     id: int
+    
+    class Config:
+        from_attributes = True
 
+# --- Puesto Schemas ---
+
+class PuestoBase(BaseModel):
+    numero_puesto: int
+    descripcion: Optional[str] = None
+    tasa_semanal: Optional[Decimal] = 0
+    activo: Optional[bool] = True
+    eliminado: Optional[bool] = False
+
+class PuestoCreate(PuestoBase):
+    maquina_id: int
+
+class PuestoUpdate(PuestoBase):
+    pass
+
+class Puesto(PuestoBase):
+    id: int
+    maquina_id: int
+    
     class Config:
         from_attributes = True
 
@@ -57,11 +79,10 @@ class MaquinaBase(BaseModel):
     numero_serie: Optional[str] = None
     
     es_multipuesto: Optional[bool] = False
-    numero_puesto: Optional[int] = None
-    maquina_padre_id: Optional[int] = None
     tasa_semanal_override: Optional[Decimal] = None
     
     activo: Optional[bool] = True
+    eliminada: Optional[bool] = False
     observaciones: Optional[str] = None
     fecha_alta: Optional[date] = None
     fecha_baja: Optional[date] = None
@@ -69,7 +90,10 @@ class MaquinaBase(BaseModel):
 class MaquinaCreate(MaquinaBase):
     salon_id: int
     tipo_maquina_id: int
-    nombre: str 
+    nombre: str
+    
+    # Optional: allow specifying number of seats to auto-create
+    cantidad_puestos_iniciales: Optional[int] = 1
 
 class MaquinaUpdate(MaquinaBase):
     pass
@@ -77,9 +101,7 @@ class MaquinaUpdate(MaquinaBase):
 class Maquina(MaquinaBase):
     id: int
     
-    # We can include nested objects if needed, e.g.
-    # tipo: TipoMaquina
-    # grupo: Optional[GrupoMaquina]
+    puestos: List[Puesto] = []
     
     class Config:
         from_attributes = True

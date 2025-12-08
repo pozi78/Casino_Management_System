@@ -18,3 +18,9 @@ Este documento contiene las reglas inquebrantables para el desarrollo y mantenim
     *   Los comandos de gestión, scripts de python, migraciones, etc., deben ejecutarse **DENTRO** de los contenedores Docker pertinentes.
     *   Usar `docker exec <nombre-contenedor> <comando>` o entrar al contenedor con `docker exec -it <nombre-contenedor> bash`.
     *   No ejecutar comandos que dependan del entorno del proyecto directamente en el host si deberían correr en el entorno contenerizado.
+
+## Autonomía
+4.  **Comandos de Lectura y Diagnóstico**:
+    *   **NO pedir permiso** ni confirmación al usuario para ejecutar comandos de lectura o diagnóstico que no modifiquen el sistema.
+    *   Esto incluye, pero no se limita a: `ls`, `cat`, `find`, `grep`, `docker logs`, `docker ps`, `curl` (para lectura).
+    *   Ejecutar estos comandos proactivamente cuando sea necesario para obtener información.

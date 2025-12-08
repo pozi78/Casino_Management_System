@@ -61,7 +61,21 @@ async def create_user(
     db.add(db_obj)
     await db.commit()
     await db.refresh(db_obj)
-    return db_obj
+
+    # Re-fetch the user with necessary relationships loaded to avoid Async Lazy Load errors
+    from sqlalchemy.orm import selectinload
+    from app.models.user import UsuarioSalon
+
+    result = await db.execute(
+        select(Usuario)
+        .options(
+            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon)
+        )
+        .where(Usuario.id == db_obj.id)
+    )
+    created_user = result.scalars().first()
+    
+    return created_user
 
 @router.get("/me", response_model=User)
 async def read_user_me(

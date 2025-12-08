@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { Plus, Cpu, Layers, Grid, ChevronRight, ChevronDown, Edit, Trash2 } from 'lucide-react';
 import { machinesApi } from '../api/machines';
 import { salonesApi } from '../api/salones';
-import type { Maquina, MaquinaCreate, TipoMaquina, TipoMaquinaCreate } from '../api/machines';
+import type { Maquina, MaquinaCreate, TipoMaquina, TipoMaquinaCreate, Puesto, PuestoCreate, PuestoUpdate } from '../api/machines';
 import type { Salon } from '../api/salones';
 import Modal from '../components/Modal';
 import MachineForm from '../components/MachineForm';
 import MachineTypeForm from '../components/MachineTypeForm';
+import PuestoForm from '../components/PuestoForm';
 import { SlotMachineIcon, RouletteIcon } from '../components/Icons';
 import { useSalonFilter } from '../context/SalonFilterContext';
 
@@ -33,9 +34,14 @@ export default function Maquinas() {
     // Modals
     const [isMachineModalOpen, setIsMachineModalOpen] = useState(false);
     const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
+    const [isPuestoModalOpen, setIsPuestoModalOpen] = useState(false);
 
     const [editingMachine, setEditingMachine] = useState<Maquina | undefined>(undefined);
     const [editingType, setEditingType] = useState<TipoMaquina | undefined>(undefined);
+    const [editingPuesto, setEditingPuesto] = useState<Puesto | undefined>(undefined);
+    const [targetMachineId, setTargetMachineId] = useState<number | undefined>(undefined);
+    const [defaultRate, setDefaultRate] = useState<number>(0);
+    const [nextPuestoNumber, setNextPuestoNumber] = useState<number>(0);
 
     useEffect(() => {
         fetchData();
@@ -52,7 +58,7 @@ export default function Maquinas() {
             ]);
 
             // Ensure we have a fresh list of machines
-            // The API returns all, including children.
+            // The API returns distinct physical machines now (puestos nested)
             setMachines(m.sort((a, b) => a.nombre.localeCompare(b.nombre)));
             setTypes(t);
             setSalons(s);
@@ -89,6 +95,58 @@ export default function Maquinas() {
         setIsTypeModalOpen(true);
     };
 
+    // --- Puesto Handlers ---
+    const handleSavePuesto = async (data: PuestoCreate | PuestoUpdate) => {
+        if (editingPuesto) {
+            await machinesApi.updatePuesto(editingPuesto.id, data as PuestoUpdate);
+        } else if (targetMachineId) {
+            await machinesApi.createPuesto({ ...data as PuestoCreate, maquina_id: targetMachineId });
+        }
+        await fetchData();
+        setIsPuestoModalOpen(false);
+    };
+
+    const handleAddPuesto = (machineId: number) => {
+        setTargetMachineId(machineId);
+        setEditingPuesto(undefined);
+
+        // Calculate defaults
+        const machine = machines.find(m => m.id === machineId);
+        if (machine) {
+            const activePuestos = (machine.puestos || []).filter(p => !p.eliminado);
+            const maxPuesto = activePuestos.length > 0 ? Math.max(...activePuestos.map(p => p.numero_puesto)) : 0;
+            setNextPuestoNumber(maxPuesto + 1);
+
+            if (machine.tasa_semanal_override && machine.tasa_semanal_override > 0) {
+                setDefaultRate(machine.tasa_semanal_override);
+            } else {
+                const type = types.find(t => t.id === machine.tipo_maquina_id);
+                setDefaultRate(type?.tasa_semanal_orientativa || 0);
+            }
+        } else {
+            setNextPuestoNumber(1);
+            setDefaultRate(0);
+        }
+
+        setIsPuestoModalOpen(true);
+    };
+
+    const handleEditPuesto = (puesto: Puesto) => {
+        setEditingPuesto(puesto);
+        setTargetMachineId(puesto.maquina_id);
+        setIsPuestoModalOpen(true);
+    };
+
+    const handleDeletePuesto = async (id: number) => {
+        if (!window.confirm('¿Seguro que quieres eliminar este puesto?')) return;
+        try {
+            await machinesApi.deletePuesto(id);
+            await fetchData();
+        } catch {
+            alert('Error al eliminar puesto');
+        }
+    };
+
     // --- Machine Handlers ---
     const handleSaveMachine = async (data: MaquinaCreate) => {
         if (editingMachine) {
@@ -101,7 +159,7 @@ export default function Maquinas() {
     };
 
     const handleDeleteMachine = async (id: number) => {
-        if (!window.confirm('¿Seguro que quieres eliminar esta máquina? (Si es multipuesto, eliminará también las submáquinas vinculadas)')) return;
+        if (!window.confirm('¿Seguro que quieres eliminar esta máquina y todos sus puestos?')) return;
         try {
             await machinesApi.delete(id);
             await fetchData();
@@ -118,45 +176,20 @@ export default function Maquinas() {
     // --- Helpers ---
     const getTypeName = (id: number) => types.find(t => t.id === id)?.nombre || 'Desconocido';
 
-
-    // Helper to organize machines into Roots (Standalone + Parents) and Children
-    const organizeMachines = (machineList: Maquina[]) => {
-        const childrenMap: Record<number, Maquina[]> = {};
-        const roots: Maquina[] = [];
-
-        // 1. Identify Children (machines with maquina_padre_id)
-        machineList.forEach(m => {
-            if (m.maquina_padre_id) {
-                if (!childrenMap[m.maquina_padre_id]) childrenMap[m.maquina_padre_id] = [];
-                childrenMap[m.maquina_padre_id].push(m);
-            }
-        });
-
-        // 2. Identify Roots (machines without maquina_padre_id)
-        machineList.forEach(m => {
-            if (!m.maquina_padre_id) {
-                roots.push(m);
-            }
-        });
-
-        return { roots, childrenMap };
-    };
-
     const getMachineIcon = (machine: Maquina | TipoMaquina) => {
         const name = 'nombre' in machine ? machine.nombre : '';
         if (name.toLowerCase().includes('ruleta')) return RouletteIcon;
-        // Check type name if needed, but machine name is usually sufficient.
-        // Fallback or specific types could serve here.
         return SlotMachineIcon;
     };
 
-    const renderMachineCards = (machineList: Maquina[], childrenMap: Record<number, Maquina[]>) => (
+    const renderMachineCards = (machineList: Maquina[]) => (
         machineList.map(m => {
-            const children = childrenMap[m.id];
-
-            // Note: If es_multipuesto is true, treat as container even if children array empty momentarily
+            // Note: If es_multipuesto is true, treat as container
             if (m.es_multipuesto) {
                 const isExpanded = expandedMultipuestos[m.id]; // Default collapsed if undefined
+                const puestos = (m.puestos || [])
+                    .filter(p => !p.eliminado)
+                    .sort((a, b) => a.numero_puesto - b.numero_puesto);
 
                 return (
                     <div key={m.id} className="border border-indigo-100 rounded-lg overflow-hidden bg-white mb-2 shadow-sm">
@@ -181,8 +214,15 @@ export default function Maquinas() {
                                         <div className="flex items-center gap-2">
                                             <h3 className="font-bold text-gray-900 text-sm">{m.nombre}</h3>
                                             <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">
-                                                {children?.length || 0} Puestos
+                                                {puestos.length} Puestos
                                             </span>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleAddPuesto(m.id); }}
+                                                className="p-1 text-emerald-600 hover:bg-emerald-100 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                                                title="Añadir Puesto"
+                                            >
+                                                <Plus size={16} />
+                                            </button>
                                         </div>
                                         <div className="text-xs text-gray-500 mt-0.5">{getTypeName(m.tipo_maquina_id)}</div>
                                     </div>
@@ -200,35 +240,33 @@ export default function Maquinas() {
                             </div>
                         </div>
 
-                        {/* Children List */}
+                        {/* Puestos List */}
                         {isExpanded && (
                             <div className="border-t border-indigo-100 bg-gray-50/30 p-2 space-y-1 pl-4 sm:pl-10">
-                                {children && children.map(child => (
-                                    <div key={child.id} className="group bg-white border border-gray-100 rounded p-2 flex items-center justify-between text-sm hover:border-indigo-200 transition-colors">
+                                {puestos.map(puesto => (
+                                    <div key={puesto.id} className="group bg-white border border-gray-100 rounded p-2 flex items-center justify-between text-sm hover:border-indigo-200 transition-colors">
                                         <div className="flex items-center gap-3">
                                             <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full"></div>
                                             <div>
-                                                <span className="font-medium text-gray-700">{child.nombre}</span>
+                                                <span className="font-medium text-gray-700">{puesto.descripcion || `Puesto ${puesto.numero_puesto}`}</span>
                                                 <span className="ml-2 text-xs text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 font-medium">
-                                                    Puesto {child.numero_puesto || '?'}
+                                                    #{puesto.numero_puesto}
                                                 </span>
                                             </div>
                                         </div>
 
                                         <div className="flex items-center gap-3">
-                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${child.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                                                {child.activo ? 'Activo' : 'Baja'}
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${puesto.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                                                {puesto.activo ? 'Activo' : 'Baja'}
                                             </span>
-
-                                            {/* Child Actions */}
-                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => handleOpenMachineModal(child)} className="p-1 text-gray-400 hover:text-blue-600"><Edit size={14} /></button>
-                                                <button onClick={() => handleDeleteMachine(child.id)} className="p-1 text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
+                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => handleEditPuesto(puesto)} className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Edit size={14} /></button>
+                                                <button onClick={() => handleDeletePuesto(puesto.id)} className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 size={14} /></button>
                                             </div>
                                         </div>
                                     </div>
                                 ))}
-                                {(!children || children.length === 0) && (
+                                {puestos.length === 0 && (
                                     <div className="text-xs text-gray-400 italic p-2 text-center">Sin puestos asignados</div>
                                 )}
                             </div>
@@ -237,7 +275,7 @@ export default function Maquinas() {
                 );
             }
 
-            // Standard Card (Single)
+            // Standard Card (Single/Monopuesto)
             return (
                 <div key={m.id} className="group bg-white rounded-lg border border-gray-100 p-3 hover:shadow-md transition-all flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4 flex-1">
@@ -346,25 +384,20 @@ export default function Maquinas() {
 
                                 const isSalonExpanded = expandedSalons[salon.id];
 
-                                // Organize machines (Roots vs Children)
-                                const { roots, childrenMap } = organizeMachines(salonMachines);
-
                                 // Sort: Multipuesto first (Alpha), then Monopuesto (Alpha)
-                                roots.sort((a, b) => {
+                                salonMachines.sort((a, b) => {
                                     if (a.es_multipuesto && !b.es_multipuesto) return -1;
                                     if (!a.es_multipuesto && b.es_multipuesto) return 1;
                                     return a.nombre.localeCompare(b.nombre);
                                 });
 
-
-
                                 // Calculate counts
-                                const totalRoots = roots.length;
-                                const totalMultipuestoSeats = roots.reduce((acc, m) => {
-                                    if (m.es_multipuesto) return acc + (childrenMap[m.id]?.length || 0);
+                                const totalRoots = salonMachines.length;
+                                const totalMultipuestoSeats = salonMachines.reduce((acc, m) => {
+                                    if (m.es_multipuesto) return acc + (m.puestos?.length || 0);
                                     return acc;
                                 }, 0);
-                                const totalMonopuestos = roots.filter(m => !m.es_multipuesto).length;
+                                const totalMonopuestos = salonMachines.filter(m => !m.es_multipuesto).length;
 
                                 return (
                                     <div key={salon.id} className="mb-8">
@@ -405,7 +438,7 @@ export default function Maquinas() {
                                         {isSalonExpanded && (
                                             <div className="space-y-6 pl-2 sm:pl-4 border-l-2 border-gray-100 ml-2 sm:ml-4">
                                                 <div className="flex flex-col gap-2">
-                                                    {renderMachineCards(roots, childrenMap)}
+                                                    {renderMachineCards(salonMachines)}
                                                 </div>
                                             </div>
                                         )}
@@ -474,6 +507,21 @@ export default function Maquinas() {
                             initialData={editingType}
                             onSubmit={handleSaveType}
                             onCancel={() => setIsTypeModalOpen(false)}
+                        />
+                    </Modal>
+
+                    <Modal
+                        isOpen={isPuestoModalOpen}
+                        onClose={() => setIsPuestoModalOpen(false)}
+                        title={editingPuesto ? "Editar Puesto" : "Nuevo Puesto"}
+                    >
+                        <PuestoForm
+                            initialData={editingPuesto}
+                            maquinaId={targetMachineId || 0}
+                            defaultRate={defaultRate}
+                            nextPuestoNumber={nextPuestoNumber}
+                            onSubmit={handleSavePuesto}
+                            onCancel={() => setIsPuestoModalOpen(false)}
                         />
                     </Modal>
                 </>

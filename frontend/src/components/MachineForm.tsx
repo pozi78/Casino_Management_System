@@ -23,8 +23,7 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
         nombre_referencia_uorsa: '',
         numero_serie: '',
         es_multipuesto: false,
-        numero_puesto: 0,
-        maquina_padre_id: undefined,
+        cantidad_puestos_iniciales: 1,
         tasa_semanal_override: 0,
         observaciones: '',
         activo: true
@@ -68,14 +67,26 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
                 nombre_referencia_uorsa: initialData.nombre_referencia_uorsa || '',
                 numero_serie: initialData.numero_serie || '',
                 es_multipuesto: initialData.es_multipuesto,
-                numero_puesto: initialData.numero_puesto || 0,
-                maquina_padre_id: initialData.maquina_padre_id,
+                // On update, we don't usually set quantity of puestos to create, 
+                // but we might want to show it or handle it differently.
+                // For now, default to 1 or 0 to be safe.
+                cantidad_puestos_iniciales: 1,
                 tasa_semanal_override: initialData.tasa_semanal_override || 0,
                 observaciones: initialData.observaciones || '',
                 activo: initialData.activo
             });
         }
     }, [initialData]);
+
+    // Auto-fill rate when type changes
+    useEffect(() => {
+        if (!initialData && formData.tipo_maquina_id) {
+            const selectedType = types.find(t => t.id === formData.tipo_maquina_id);
+            if (selectedType) {
+                setFormData(prev => ({ ...prev, tasa_semanal_override: selectedType.tasa_semanal_orientativa }));
+            }
+        }
+    }, [formData.tipo_maquina_id]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -121,6 +132,7 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
                 </div>
             )}
 
+            {/* Row 1: Salón - Nombre */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Nombre (Obligatorio)</label>
@@ -131,6 +143,33 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
                         value={formData.nombre}
                         onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
                         placeholder="Ej. Ruleta Pos 1"
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Salón</label>
+                    <select
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all bg-white"
+                        value={formData.salon_id}
+                        onChange={(e) => setFormData({ ...formData, salon_id: Number(e.target.value) })}
+                    >
+                        <option value={0}>Seleccione un salón...</option>
+                        {salones.map(s => (
+                            <option key={s.id} value={s.id}>{s.nombre}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            {/* Row 2: Número de Serie - Ref. UORSA */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Número de Serie</label>
+                    <input
+                        type="text"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                        value={formData.numero_serie}
+                        onChange={(e) => setFormData({ ...formData, numero_serie: e.target.value })}
+                        placeholder="Opcional"
                     />
                 </div>
                 <div>
@@ -145,20 +184,8 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
                 </div>
             </div>
 
+            {/* Row 3: Tipo de Máquina - Tasa semanal (Auto-fill) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Salón</label>
-                    <select
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all bg-white"
-                        value={formData.salon_id}
-                        onChange={(e) => setFormData({ ...formData, salon_id: Number(e.target.value) })}
-                    >
-                        <option value={0}>Seleccione un salón...</option>
-                        {salones.map(s => (
-                            <option key={s.id} value={s.id}>{s.nombre}</option>
-                        ))}
-                    </select>
-                </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Máquina</label>
                     <select
@@ -172,24 +199,25 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
                         ))}
                     </select>
                 </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Número de Serie</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tasa semanal por puesto</label>
                     <input
-                        type="text"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                        value={formData.numero_serie}
-                        onChange={(e) => setFormData({ ...formData, numero_serie: e.target.value })}
-                        placeholder="Opcional"
+                        type="number"
+                        step="0.01"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all bg-gray-50"
+                        value={formData.tasa_semanal_override ?? ''}
+                        onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            setFormData({ ...formData, tasa_semanal_override: isNaN(val) ? undefined : val });
+                        }}
+                        placeholder="0.00"
                     />
                 </div>
             </div>
 
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex flex-col justify-end pb-2">
+            {/* Row 4: Es Multipuesto - Cantidad */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                <div className="pt-8">
                     <label className="flex items-center cursor-pointer">
                         <input
                             type="checkbox"
@@ -198,32 +226,35 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
                             onChange={(e) => setFormData({ ...formData, es_multipuesto: e.target.checked })}
                         />
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                        <span className="ml-3 text-sm font-medium text-gray-700">Es Multipuesto (Padre)</span>
+                        <span className="ml-3 text-sm font-medium text-gray-700">Es Multipuesto</span>
                     </label>
                 </div>
 
-                {(formData.es_multipuesto || formData.maquina_padre_id) && (
+                {formData.es_multipuesto && !initialData && (
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                            {!initialData || formData.maquina_padre_id ? "Número Puesto" : "Cantidad de Puestos (Auto-generar)"}
+                            Cantidad de Puestos a generar
                         </label>
                         <input
                             type="number"
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                            value={formData.numero_puesto || ''}
-                            onChange={(e) => setFormData({ ...formData, numero_puesto: parseInt(e.target.value) || 0 })}
-                            placeholder={(!initialData && !formData.maquina_padre_id) ? "Ej. 3 (Creará 3 máquinas)" : "Ej. 1"}
+                            value={formData.cantidad_puestos_iniciales ?? ''}
+                            onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                setFormData({
+                                    ...formData,
+                                    cantidad_puestos_iniciales: isNaN(val) ? undefined : val
+                                });
+                            }}
+                            placeholder="Ej. 3 (Creará 3 puestos)"
                             min={1}
                         />
-                        {(!initialData && !formData.maquina_padre_id) && (
-                            <p className="text-xs text-gray-500 mt-1">Se crearán {formData.numero_puesto || 0} máquinas vinculadas.</p>
-                        )}
+                        <p className="text-xs text-gray-500 mt-1">Se crearán {formData.cantidad_puestos_iniciales || 1} puestos vinculados.</p>
                     </div>
                 )}
             </div>
 
-            {/* Tasa Override currently not asked for but good to keep if in DB. */}
-            {/* Observaciones */}
+            {/* Row 5: Observaciones */}
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
                 <textarea
@@ -234,6 +265,7 @@ export default function MachineForm({ initialData, onSubmit, onCancel }: Machine
                 />
             </div>
 
+            {/* Row 6: Activo */}
             <div className="flex items-center pt-2">
                 <label className="flex items-center cursor-pointer">
                     <input

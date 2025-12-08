@@ -1,4 +1,5 @@
 from typing import Any, List, Optional
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
@@ -11,6 +12,22 @@ from app.api import deps
 from app.models.user import Usuario
 
 router = APIRouter()
+
+@router.get("/last", response_model=Optional[datetime])
+async def get_last_recaudacion_date(
+    salon_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Get the end date of the last Recaudacion for a Salon.
+    Used for auto-filling the start date of the next one.
+    """
+    # Order by start date descending, get most recent
+    recaudaciones = await recaudacion.get_multi(db, skip=0, limit=1, salon_id=salon_id)
+    if recaudaciones:
+        return recaudaciones[0].fecha_fin
+    return None
 
 @router.get("/", response_model=List[RecaudacionSummary])
 async def read_recaudaciones(

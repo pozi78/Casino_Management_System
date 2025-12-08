@@ -13,13 +13,18 @@ export interface RecaudacionMaquina {
     detalle_tasa: string;
     maquina?: {
         id: number;
-        nombre: number;
+        nombre: string;
         numero_serie: string;
         tipo_maquina: {
             nombre: string;
             nombre_corto: string;
         }
-    }
+    };
+    puesto?: {
+        id: number;
+        numero_puesto: number;
+        descripcion: string;
+    };
 }
 
 export interface RecaudacionMaquinaUpdate {
@@ -77,6 +82,13 @@ export const recaudacionApi = {
     // Collection Operations
     getAll: async (salon_id?: number) => {
         const response = await axiosInstance.get<Recaudacion[]>('/recaudaciones/', {
+            params: { salon_id }
+        });
+        return response.data;
+    },
+
+    getLastDate: async (salon_id: number) => {
+        const response = await axiosInstance.get<string | null>('/recaudaciones/last', {
             params: { salon_id }
         });
         return response.data;

@@ -129,7 +129,6 @@ export default function UserForm({ initialData, onSubmit, onCancel }: UserFormPr
                         <label className="block text-sm font-medium text-gray-700 mb-1">Cargo</label>
                         <input
                             type="text"
-                            required
                             className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                             placeholder="Ej: Gerente"
                             value={formData.cargo}
@@ -140,7 +139,6 @@ export default function UserForm({ initialData, onSubmit, onCancel }: UserFormPr
                         <label className="block text-sm font-medium text-gray-700 mb-1">Departamento</label>
                         <input
                             type="text"
-                            required
                             className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                             placeholder="Ej: RRHH"
                             value={formData.departamento}
@@ -152,7 +150,6 @@ export default function UserForm({ initialData, onSubmit, onCancel }: UserFormPr
                     <label className="block text-sm font-medium text-gray-700 mb-1">Código Empleado</label>
                     <input
                         type="text"
-                        required
                         className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                         value={formData.codigo_empleado}
                         onChange={e => setFormData({ ...formData, codigo_empleado: e.target.value })}
@@ -168,7 +165,6 @@ export default function UserForm({ initialData, onSubmit, onCancel }: UserFormPr
                         <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
                         <input
                             type="text"
-                            required
                             className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                             value={formData.telefono}
                             onChange={e => setFormData({ ...formData, telefono: e.target.value })}
@@ -180,7 +176,6 @@ export default function UserForm({ initialData, onSubmit, onCancel }: UserFormPr
                             <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">@</span>
                             <input
                                 type="text"
-                                required
                                 className="w-full border rounded-lg pl-7 p-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                                 value={formData.telegram_user}
                                 onChange={e => setFormData({ ...formData, telegram_user: e.target.value })}

@@ -40,6 +40,31 @@ export interface TipoMaquinaCreate {
     activo?: boolean;
 }
 
+export interface Puesto {
+    id: number;
+    maquina_id: number;
+    numero_puesto: number;
+    descripcion?: string;
+    tasa_semanal?: number;
+    activo: boolean;
+    eliminado: boolean;
+}
+
+export interface PuestoCreate {
+    maquina_id: number;
+    numero_puesto: number;
+    descripcion?: string;
+    tasa_semanal?: number;
+    activo?: boolean;
+}
+
+export interface PuestoUpdate {
+    numero_puesto?: number;
+    descripcion?: string;
+    tasa_semanal?: number;
+    activo?: boolean;
+}
+
 export interface Maquina {
     id: number;
     salon_id: number;
@@ -51,14 +76,17 @@ export interface Maquina {
     numero_serie?: string;
 
     es_multipuesto: boolean;
-    numero_puesto?: number;
-    maquina_padre_id?: number;
+    // numero_puesto removed
+    // maquina_padre_id removed
     tasa_semanal_override?: number;
 
     activo: boolean;
+    eliminada: boolean;
     observaciones?: string;
     fecha_alta?: string;
     fecha_baja?: string;
+
+    puestos?: Puesto[]; // Nested Puestos
 }
 
 export interface MaquinaCreate {
@@ -69,7 +97,7 @@ export interface MaquinaCreate {
     nombre_referencia_uorsa?: string;
     numero_serie?: string;
     es_multipuesto?: boolean;
-    numero_puesto?: number;
+    cantidad_puestos_iniciales?: number; // Replaces numero_puesto logic for creation
     tasa_semanal_override?: number;
     activo?: boolean;
     observaciones?: string;
@@ -83,9 +111,10 @@ export interface MaquinaUpdate {
     nombre_referencia_uorsa?: string;
     numero_serie?: string;
     es_multipuesto?: boolean;
-    numero_puesto?: number;
+    // Puestos are usually not updated via Maquina Update logic, or maybe separate endpoint later.
     tasa_semanal_override?: number;
     activo?: boolean;
+    eliminada?: boolean;
     observaciones?: string;
     fecha_baja?: string;
 }
@@ -127,12 +156,12 @@ export const machinesApi = {
     // Machines
     getAll: async (salonId?: number): Promise<Maquina[]> => {
         const params = salonId ? { salon_id: salonId } : {};
-        const response = await axiosInstance.get('/maquinas', { params });
+        const response = await axiosInstance.get('/maquinas/', { params });
         return response.data;
     },
 
     create: async (data: MaquinaCreate): Promise<Maquina> => {
-        const response = await axiosInstance.post('/maquinas', data);
+        const response = await axiosInstance.post('/maquinas/', data);
         return response.data;
     },
 
@@ -143,6 +172,22 @@ export const machinesApi = {
 
     delete: async (id: number): Promise<Maquina> => {
         const response = await axiosInstance.delete(`/maquinas/${id}`);
+        return response.data;
+    },
+
+    // Puestos
+    createPuesto: async (data: PuestoCreate): Promise<Puesto> => {
+        const response = await axiosInstance.post('/maquinas/puestos', data);
+        return response.data;
+    },
+
+    updatePuesto: async (id: number, data: PuestoUpdate): Promise<Puesto> => {
+        const response = await axiosInstance.put(`/maquinas/puestos/${id}`, data);
+        return response.data;
+    },
+
+    deletePuesto: async (id: number): Promise<Puesto> => {
+        const response = await axiosInstance.delete(`/maquinas/puestos/${id}`);
         return response.data;
     },
 };

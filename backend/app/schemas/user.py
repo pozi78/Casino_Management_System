@@ -25,14 +25,6 @@ class UserCreate(UserBase):
     email: EmailStr
     username: str
     password: str
-    
-    # Mandatory in creation
-    telefono: str
-    telegram_user: str
-    cargo: str
-    departamento: str
-    codigo_empleado: str
-    password: str
 
 # Properties to receive via API on update
 class UserUpdate(UserBase):

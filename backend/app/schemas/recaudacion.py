@@ -1,16 +1,17 @@
 from typing import List, Optional
-from datetime import date
+from datetime import date, datetime
 from pydantic import BaseModel
 from decimal import Decimal
 
 # --- Recaudacion Maquina ---
 
-from app.schemas.machine import Maquina # Import Maquina schema
+from app.schemas.machine import Maquina, Puesto
 
 # --- Recaudacion Maquina ---
 
 class RecaudacionMaquinaBase(BaseModel):
     maquina_id: int
+    puesto_id: Optional[int] = None
     retirada_efectivo: Decimal = Decimal(0)
     cajon: Decimal = Decimal(0)
     pago_manual: Decimal = Decimal(0)
@@ -34,6 +35,7 @@ class RecaudacionMaquina(RecaudacionMaquinaBase):
     id: int
     recaudacion_id: int
     maquina: Optional[Maquina] = None # Include Maquina info
+    puesto: Optional[Puesto] = None
 
     class Config:
         from_attributes = True
@@ -42,8 +44,8 @@ class RecaudacionMaquina(RecaudacionMaquinaBase):
 
 class RecaudacionBase(BaseModel):
     salon_id: int
-    fecha_inicio: date
-    fecha_fin: date
+    fecha_inicio: datetime
+    fecha_fin: datetime
     fecha_cierre: date
     etiqueta: Optional[str] = None
     origen: Optional[str] = 'manual'
@@ -57,8 +59,8 @@ class RecaudacionCreate(RecaudacionBase):
     pass
 
 class RecaudacionUpdate(BaseModel):
-    fecha_inicio: Optional[date] = None
-    fecha_fin: Optional[date] = None
+    fecha_inicio: Optional[datetime] = None
+    fecha_fin: Optional[datetime] = None
     fecha_cierre: Optional[date] = None
     etiqueta: Optional[str] = None
     notas: Optional[str] = None

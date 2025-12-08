@@ -2,11 +2,12 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
-from app.crud.crud_machine import maquina, tipo_maquina, grupo_maquina
+from app.crud.crud_machine import maquina, tipo_maquina, grupo_maquina, puesto
 from app.schemas.machine import (
     Maquina as MaquinaSchema, MaquinaCreate, MaquinaUpdate,
     TipoMaquina as TipoMaquinaSchema, TipoMaquinaCreate, TipoMaquinaUpdate,
-    GrupoMaquina as GrupoMaquinaSchema, GrupoMaquinaCreate, GrupoMaquinaUpdate
+    GrupoMaquina as GrupoMaquinaSchema, GrupoMaquinaCreate, GrupoMaquinaUpdate,
+    Puesto as PuestoSchema, PuestoCreate, PuestoUpdate
 )
 
 router = APIRouter()
@@ -144,3 +145,48 @@ async def delete_machine(
         raise HTTPException(status_code=404, detail="Machine not found")
     machine = await maquina.remove(db, id=machine_id)
     return machine
+
+# --- Puesto Endpoints ---
+
+@router.post("/puestos", response_model=PuestoSchema)
+async def create_puesto(
+    puesto_in: PuestoCreate,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Create new puesto.
+    """
+    try:
+        puesto_obj = await puesto.create(db, obj_in=puesto_in)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return puesto_obj
+
+@router.put("/puestos/{puesto_id}", response_model=PuestoSchema)
+async def update_puesto(
+    puesto_id: int,
+    puesto_in: PuestoUpdate,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Update a puesto.
+    """
+    puesto_obj = await puesto.get(db, id=puesto_id)
+    if not puesto_obj:
+        raise HTTPException(status_code=404, detail="Puesto not found")
+    puesto_updated = await puesto.update(db, db_obj=puesto_obj, obj_in=puesto_in)
+    return puesto_updated
+
+@router.delete("/puestos/{puesto_id}", response_model=PuestoSchema)
+async def delete_puesto(
+    puesto_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Delete a puesto.
+    """
+    puesto_obj = await puesto.get(db, id=puesto_id)
+    if not puesto_obj:
+        raise HTTPException(status_code=404, detail="Puesto not found")
+    puesto_deleted = await puesto.remove(db, id=puesto_id)
+    return puesto_deleted
