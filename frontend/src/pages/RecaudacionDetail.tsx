@@ -162,11 +162,11 @@ export default function RecaudacionDetail() {
                             </p>
                             <div className="flex gap-4">
                                 <div className="bg-white px-3 py-1 rounded-lg border border-gray-200 shadow-sm flex items-center gap-2">
-                                    <span className="text-xs font-semibold text-gray-500 uppercase">{recaudacion.salon?.nombre || 'SALON'} (50%):</span>
+                                    <span className="text-xs font-semibold text-gray-500 uppercase">NETO {recaudacion.salon?.nombre || 'SALON'}:</span>
                                     <span className={`text-sm font-bold ${getColorClass(splitTotal)}`}>{formatCurrency(splitTotal)}</span>
                                 </div>
                                 <div className="bg-white px-3 py-1 rounded-lg border border-gray-200 shadow-sm flex items-center gap-2">
-                                    <span className="text-xs font-semibold text-gray-500 uppercase">UORSA (50%):</span>
+                                    <span className="text-xs font-semibold text-gray-500 uppercase">NETO UORSA:</span>
                                     <span className={`text-sm font-bold ${getColorClass(splitTotal)}`}>{formatCurrency(splitTotal)}</span>
                                 </div>
                             </div>

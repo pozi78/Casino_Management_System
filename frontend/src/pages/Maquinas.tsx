@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Cpu, Layers, Grid, ChevronRight, ChevronDown, Edit, Trash2, Gamepad2 } from 'lucide-react';
+import { Plus, Cpu, Layers, Grid, ChevronRight, ChevronDown, Edit, Trash2 } from 'lucide-react';
 import { machinesApi } from '../api/machines';
 import { salonesApi } from '../api/salones';
 import type { Maquina, MaquinaCreate, TipoMaquina, TipoMaquinaCreate } from '../api/machines';
@@ -7,6 +7,7 @@ import type { Salon } from '../api/salones';
 import Modal from '../components/Modal';
 import MachineForm from '../components/MachineForm';
 import MachineTypeForm from '../components/MachineTypeForm';
+import { SlotMachineIcon, RouletteIcon } from '../components/Icons';
 
 type Tab = 'inventory' | 'types';
 
@@ -146,6 +147,14 @@ export default function Maquinas() {
         return { roots, childrenMap };
     };
 
+    const getMachineIcon = (machine: Maquina | TipoMaquina) => {
+        const name = 'nombre' in machine ? machine.nombre : '';
+        if (name.toLowerCase().includes('ruleta')) return RouletteIcon;
+        // Check type name if needed, but machine name is usually sufficient.
+        // Fallback or specific types could serve here.
+        return SlotMachineIcon;
+    };
+
     const renderMachineCards = (machineList: Maquina[], childrenMap: Record<number, Maquina[]>) => (
         machineList.map(m => {
             const children = childrenMap[m.id];
@@ -168,7 +177,10 @@ export default function Maquinas() {
 
                                 <div className="flex items-center gap-3">
                                     <div className="bg-white border border-indigo-200 text-indigo-600 p-1.5 rounded-lg shadow-sm">
-                                        <Cpu size={18} />
+                                        {(() => {
+                                            const Icon = getMachineIcon(m);
+                                            return <Icon size={18} />;
+                                        })()}
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">
@@ -221,7 +233,10 @@ export default function Maquinas() {
                 <div key={m.id} className="group bg-white rounded-lg border border-gray-100 p-3 hover:shadow-md transition-all flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4 flex-1">
                         <div className={`p-2 rounded-lg ${m.es_multipuesto ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                            <Cpu size={20} />
+                            {(() => {
+                                const Icon = getMachineIcon(m);
+                                return <Icon size={20} />;
+                            })()}
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
@@ -357,7 +372,7 @@ export default function Maquinas() {
                                                     <h2 className="text-xl font-bold text-gray-900">{salon.nombre}</h2>
                                                     <div className="text-sm text-gray-500 mt-1 flex items-center gap-4">
                                                         <span className="flex items-center gap-1.5" title="Máquinas Físicas (Total Muebles)">
-                                                            <Cpu size={16} className="text-gray-500" />
+                                                            <SlotMachineIcon size={16} className="text-gray-500" />
                                                             <span className="font-bold text-gray-900">{totalRoots}</span> Máquinas
                                                         </span>
                                                         {totalMultipuestoSeats > 0 && (
@@ -368,7 +383,7 @@ export default function Maquinas() {
                                                         )}
                                                         {totalMonopuestos > 0 && (
                                                             <span className="flex items-center gap-1.5" title="Total Puestos Monopuesto">
-                                                                <Gamepad2 size={16} className="text-emerald-500" />
+                                                                <SlotMachineIcon size={16} className="text-emerald-500" />
                                                                 <span className="font-bold text-emerald-700">{totalMonopuestos}</span> Puestos Mono
                                                             </span>
                                                         )}

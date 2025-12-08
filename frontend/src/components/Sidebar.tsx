@@ -4,7 +4,6 @@ import { NavLink } from 'react-router-dom';
 import {
     LayoutDashboard,
     Users,
-    Gamepad2,
     MapPin,
     Settings,
     LogOut,
@@ -13,6 +12,7 @@ import {
     FileText
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { SlotMachineIcon } from './Icons';
 
 interface SidebarProps {
     isOpen: boolean;
@@ -25,7 +25,7 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
     const navItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
         { icon: MapPin, label: 'Salones', path: '/salones' },
-        { icon: Gamepad2, label: 'Máquinas', path: '/maquinas' },
+        { icon: SlotMachineIcon, label: 'Máquinas', path: '/maquinas' },
         { icon: FileText, label: 'Recaudaciones', path: '/recaudaciones' },
         { icon: Users, label: 'Usuarios', path: '/usuarios' },
         { icon: Settings, label: 'Configuración', path: '/configuracion' },

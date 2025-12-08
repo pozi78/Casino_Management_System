@@ -143,8 +143,8 @@ export default function Recaudaciones() {
                                             </span>
                                         </div>
                                     </td>
-                                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${getCurrencyClasses(rec.total_neto)}`}>
-                                        {formatCurrency(rec.total_neto)}
+                                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${getCurrencyClasses((Number(rec.total_global) || 0) / 2)}`}>
+                                        {formatCurrency((Number(rec.total_global) || 0) / 2)}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {rec.etiqueta || '-'}

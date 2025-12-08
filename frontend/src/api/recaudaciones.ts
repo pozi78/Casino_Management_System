@@ -49,6 +49,7 @@ export interface Recaudacion {
     otros_conceptos?: number;
     detalles?: RecaudacionMaquina[];
     total_neto?: number;
+    total_global?: number;
 }
 
 export interface RecaudacionCreate {

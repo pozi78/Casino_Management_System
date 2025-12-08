@@ -35,6 +35,16 @@ class Recaudacion(Base):
     def total_neto(self):
         return self.total_bruto - sum((d.tasa_calculada or 0) for d in (self.detalles or []))
 
+    @property
+    def total_global(self):
+        # Matches 'Total Final' in Frontend Detail View:
+        # Subtotal (Bruto - Global Taxes) + Deposits + Other Concepts
+        bruto = self.total_bruto
+        taxes = self.total_tasas or 0
+        deps = self.depositos or 0
+        others = self.otros_conceptos or 0
+        return bruto - taxes + deps + others
+
 class RecaudacionMaquina(Base):
     __tablename__ = "recaudacion_maquina"
     id = Column(Integer, primary_key=True, index=True)

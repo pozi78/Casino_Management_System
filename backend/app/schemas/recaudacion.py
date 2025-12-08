@@ -69,6 +69,7 @@ class RecaudacionUpdate(BaseModel):
 class RecaudacionSummary(RecaudacionBase):
     id: int
     total_neto: Optional[Decimal] = None
+    total_global: Optional[Decimal] = None
 
     class Config:
         from_attributes = True
