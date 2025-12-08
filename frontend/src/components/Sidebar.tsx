@@ -1,5 +1,4 @@
-
-
+import { useState, useRef, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
     LayoutDashboard,
@@ -9,7 +8,12 @@ import {
     LogOut,
     ChevronLeft,
     ChevronRight,
-    FileText
+    FileText,
+    X,
+    Check,
+    ChevronDown,
+    ChevronUp,
+    Filter
 } from 'lucide-react';
 import { useSalonFilter } from '../context/SalonFilterContext';
 import { useAuth } from '../context/AuthContext';
@@ -23,6 +27,21 @@ interface SidebarProps {
 export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
     const { logout } = useAuth();
     const { availableSalons, selectedSalonIds, toggleSalon, selectAll, deselectAll } = useSalonFilter();
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsDropdownOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
 
     const navItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -62,7 +81,7 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
+            <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto scrollbar-hide">
                 {navItems.map((item) => (
                     <NavLink
                         key={item.path}
@@ -80,47 +99,85 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
                     </NavLink>
                 ))}
 
-                {/* Salon Filter Section */}
+                {/* Salon Filter Section (Redesigned) */}
                 {isOpen && availableSalons.length > 0 && (
-                    <div className="mt-8 px-3">
-                        <div className="flex items-center justify-between mb-3 px-1">
-                            <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
+                    <div className="mt-8 px-1">
+                        <div className="flex items-center justify-between mb-2 px-1">
+                            <h3 className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-1">
+                                <Filter size={10} />
                                 Filtrar Salones
                             </h3>
-                            <button
-                                onClick={selectedSalonIds.length === availableSalons.length ? deselectAll : selectAll}
-                                className="text-[10px] text-emerald-300 hover:text-white underline cursor-pointer"
-                            >
-                                {selectedSalonIds.length === availableSalons.length ? 'Ninguno' : 'Todos'}
-                            </button>
+                            {selectedSalonIds.length > 0 && (
+                                <button onClick={deselectAll} className="text-[10px] text-emerald-500 hover:text-red-400 transition-colors">
+                                    Borrar
+                                </button>
+                            )}
                         </div>
-                        <div className="space-y-2">
-                            {availableSalons.map(salon => (
-                                <label key={salon.id} className="flex items-center space-x-3 cursor-pointer group p-1.5 rounded-lg hover:bg-emerald-800/20 transition-colors">
-                                    <div className={`
-                                        w-4 h-4 rounded border flex items-center justify-center transition-colors
-                                        ${selectedSalonIds.includes(salon.id)
-                                            ? 'bg-[#F59E0B] border-[#F59E0B]'
-                                            : 'border-emerald-600 group-hover:border-emerald-400'
-                                        }
-                                    `}>
-                                        {selectedSalonIds.includes(salon.id) && (
-                                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                            </svg>
-                                        )}
+
+                        <div className="relative" ref={dropdownRef}>
+                            {/* Input / Chip Container */}
+                            <div
+                                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                className={`
+                                    w-full min-h-[42px] bg-[#053d2e] border border-emerald-800/50 rounded-lg p-1.5 cursor-pointer 
+                                    hover:border-emerald-600 transition-colors flex flex-wrap gap-1.5 items-center
+                                    ${isDropdownOpen ? 'ring-2 ring-emerald-500/30 border-emerald-500' : ''}
+                                `}
+                            >
+                                {selectedSalonIds.length === 0 ? (
+                                    <span className="text-emerald-200/40 text-sm px-1 select-none">Todos los salones...</span>
+                                ) : (
+                                    selectedSalonIds.map(id => {
+                                        const salon = availableSalons.find(s => s.id === id);
+                                        return (
+                                            <span
+                                                key={id}
+                                                className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-emerald-800/60 text-emerald-100 border border-emerald-700/50"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleSalon(id);
+                                                }}
+                                            >
+                                                {salon?.nombre}
+                                                <X size={10} className="ml-1 text-emerald-400 hover:text-white" />
+                                            </span>
+                                        );
+                                    })
+                                )}
+                                <div className="ml-auto pl-1 text-emerald-400">
+                                    {isDropdownOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                </div>
+                            </div>
+
+                            {/* Dropdown Menu */}
+                            {isDropdownOpen && (
+                                <div className="absolute top-full left-0 right-0 mt-1.5 bg-[#053d2e] border border-emerald-700 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                                    <div className="max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-emerald-700 scrollbar-track-transparent p-1">
+                                        <div
+                                            onClick={selectAll}
+                                            className="px-2 py-1.5 text-xs text-emerald-300 hover:bg-emerald-800/50 rounded cursor-pointer mb-1 border-b border-white/5"
+                                        >
+                                            Seleccionar Todos
+                                        </div>
+                                        {availableSalons.map(salon => {
+                                            const isSelected = selectedSalonIds.includes(salon.id);
+                                            return (
+                                                <div
+                                                    key={salon.id}
+                                                    onClick={() => toggleSalon(salon.id)}
+                                                    className={`
+                                                        flex items-center justify-between px-2 py-2 rounded cursor-pointer transition-colors
+                                                        ${isSelected ? 'bg-emerald-800/40 text-white' : 'text-emerald-200 hover:bg-emerald-800/30'}
+                                                    `}
+                                                >
+                                                    <span className="text-sm truncate pr-2">{salon.nombre}</span>
+                                                    {isSelected && <Check size={14} className="text-[#F59E0B]" />}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                    <input
-                                        type="checkbox"
-                                        className="hidden"
-                                        checked={selectedSalonIds.includes(salon.id)}
-                                        onChange={() => toggleSalon(salon.id)}
-                                    />
-                                    <span className={`text-sm ${selectedSalonIds.includes(salon.id) ? 'text-white' : 'text-emerald-200/70'}`}>
-                                        {salon.nombre}
-                                    </span>
-                                </label>
-                            ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -137,7 +194,7 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
                 </button>
             </div>
 
-            {/* Toggle Button for Collapsed State (floating outside if needed, or integrated) - keeping integrated for clean look */}
+            {/* Toggle Button for Collapsed State */}
             {!isOpen && (
                 <button
                     onClick={toggleSidebar}
