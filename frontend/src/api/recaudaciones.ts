@@ -35,6 +35,14 @@ export interface RecaudacionMaquinaUpdate {
     detalle_tasa?: string;
 }
 
+export interface RecaudacionFichero {
+    id: number;
+    recaudacion_id: number;
+    filename: string;
+    content_type?: string;
+    created_at?: string;
+}
+
 export interface Recaudacion {
     id: number;
     salon_id: number;
@@ -53,6 +61,7 @@ export interface Recaudacion {
     depositos?: number;
     otros_conceptos?: number;
     detalles?: RecaudacionMaquina[];
+    ficheros?: RecaudacionFichero[];
     total_neto?: number;
     total_global?: number;
 }
@@ -119,6 +128,37 @@ export const recaudacionApi = {
     // Detail Operations
     updateDetail: async (detail_id: number, data: RecaudacionMaquinaUpdate) => {
         const response = await axiosInstance.put<RecaudacionMaquina>(`/recaudaciones/details/${detail_id}`, data);
+        return response.data;
+    },
+
+    // File Operations
+    uploadFile: async (id: number, file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await axiosInstance.post<RecaudacionFichero>(`/recaudaciones/${id}/files`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    },
+
+    deleteFile: async (id: number, file_id: number) => {
+        await axiosInstance.delete(`/recaudaciones/${id}/files/${file_id}`);
+    },
+
+    getFileUrl: (file_id: number) => {
+        const baseURL = axiosInstance.defaults.baseURL || import.meta.env.VITE_API_URL || '/api/v1';
+        // Ensure no double slash if baseURL ends with /
+        const cleanBase = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
+        const token = localStorage.getItem('token');
+        return `${cleanBase}/recaudaciones/files/${file_id}/content?token=${token}`;
+    },
+
+    importExcel: async (id: number, file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await axiosInstance.post(`/recaudaciones/${id}/import-excel`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
         return response.data;
     },
 };

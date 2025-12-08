@@ -24,7 +24,8 @@ class CRUDRecaudacion:
                     ),
                     joinedload(RecaudacionMaquina.puesto)
                 ),
-                joinedload(Recaudacion.salon)
+                joinedload(Recaudacion.salon),
+                selectinload(Recaudacion.ficheros)
             )
             .where(Recaudacion.id == id)
         )
@@ -33,7 +34,10 @@ class CRUDRecaudacion:
     async def get_multi(
         self, db: AsyncSession, skip: int = 0, limit: int = 100, salon_id: Optional[int] = None
     ) -> List[Recaudacion]:
-        query = select(Recaudacion).options(joinedload(Recaudacion.detalles))
+        query = select(Recaudacion).options(
+            joinedload(Recaudacion.detalles),
+            selectinload(Recaudacion.ficheros)
+        )
         if salon_id:
             query = query.where(Recaudacion.salon_id == salon_id)
         # Order by start date descending usually

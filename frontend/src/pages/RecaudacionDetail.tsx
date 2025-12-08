@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
-import { recaudacionApi, type Recaudacion, type RecaudacionMaquina } from '../api/recaudaciones';
+import { ArrowLeft, FileText, Trash2, Upload, FileSpreadsheet, Paperclip, X, Download } from 'lucide-react';
+import { recaudacionApi, type Recaudacion, type RecaudacionMaquina, type RecaudacionFichero } from '../api/recaudaciones';
 import { MoneyInput } from '../components/MoneyInput';
 import { formatCurrency } from '../utils/currency';
 
@@ -13,6 +13,8 @@ export default function RecaudacionDetail() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [savingId, setSavingId] = useState<number | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
 
     const headerRef = useRef<HTMLDivElement>(null);
     const [headerHeight, setHeaderHeight] = useState(0);
@@ -157,6 +159,62 @@ export default function RecaudacionDetail() {
 
     const getColorClass = (val: number) => val > 0 ? 'text-emerald-600' : (val < 0 ? 'text-red-600' : 'text-gray-900');
     const getFadedColorClass = (val: number) => val > 0 ? 'text-emerald-400' : (val < 0 ? 'text-red-400' : 'text-gray-400');
+
+    // Documents Handlers
+    // Documents Handlers
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || !e.target.files[0] || !recaudacion) return;
+
+        setIsUploading(true);
+        setUploadError(null);
+        try {
+            await recaudacionApi.uploadFile(recaudacion.id, e.target.files[0]);
+            fetchData(recaudacion.id);
+        } catch (err) {
+            console.error(err);
+            setUploadError("Error al subir fichero");
+        } finally {
+            setIsUploading(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleFileDelete = async (fileId: number) => {
+        if (!recaudacion || !confirm('¿Estás seguro de eliminar este fichero?')) return;
+        try {
+            await recaudacionApi.deleteFile(recaudacion.id, fileId);
+            fetchData(recaudacion.id);
+        } catch (err) {
+            console.error(err);
+            setUploadError("Error al eliminar fichero");
+        }
+    };
+
+    const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || !e.target.files[0] || !recaudacion) return;
+
+        if (!confirm('Esto importará datos desde el Excel (Simulación). ¿Continuar?')) {
+            e.target.value = '';
+            return;
+        }
+
+        setIsUploading(true);
+        try {
+            const res = await recaudacionApi.importExcel(recaudacion.id, e.target.files[0]);
+            if (res.status === 'not_implemented_yet') {
+                alert("Archivo subido. El backend indica que la importación está pendiente de implementación.");
+            } else {
+                fetchData(recaudacion.id);
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error importar Excel");
+        } finally {
+            setIsUploading(false);
+            e.target.value = '';
+        }
+    };
 
 
     return (
@@ -341,97 +399,154 @@ export default function RecaudacionDetail() {
                 </table>
             </div>
 
-            {/* Summary Section - Right Aligned Stack with Border */}
-            <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-col items-end space-y-2 w-full md:w-1/2 lg:w-1/3 ml-auto">
-                {(() => {
-                    return (
-                        <>
-                            {/* 1. Total Recaudación */}
-                            <div className="flex items-center justify-end w-full">
-                                <span className="text-gray-600 font-medium mr-4 uppercase">TOTAL RECAUDACIÓN:</span>
-                                <span className={`text-xl font-bold w-32 text-right ${getColorClass(totalRecaudacion)}`}>
-                                    {formatCurrency(totalRecaudacion)}
-                                </span>
-                            </div>
+            {/* Split Layout: Documents & Summary */}
+            <div className="mt-6 flex flex-col lg:flex-row gap-6 items-start">
 
-                            {/* 2. Pagos Manuales */}
-                            <div className="flex items-center justify-end w-full">
-                                <span className="text-gray-600 font-medium mr-4 uppercase">PAGOS MANUALES:</span>
-                                <span className={`text-xl font-bold w-32 text-right ${getColorClass(-pagosManuales)}`}>
-                                    {formatCurrency(pagosManuales)}
-                                </span>
-                            </div>
+                {/* Documents Section */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex-1 w-full">
+                    <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <Paperclip size={20} /> DOCUMENTOS
+                    </h2>
 
-                            {/* 3. Ajustes */}
-                            <div className="flex items-center justify-end w-full">
-                                <span className="text-gray-600 font-medium mr-4 uppercase">AJUSTES:</span>
-                                <span className={`text-xl font-bold w-32 text-right ${getColorClass(totalAjustes)}`}>
-                                    {formatCurrency(totalAjustes)}
-                                </span>
+                    {/* List */}
+                    <div className="space-y-2 mb-4">
+                        {recaudacion.ficheros?.map(f => (
+                            <div key={f.id} className="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-100 hover:bg-blue-50 transition-colors">
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                    <FileText size={16} className="text-gray-500 flex-shrink-0" />
+                                    <a href={recaudacionApi.getFileUrl(f.id)} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline truncate font-medium">
+                                        {f.filename}
+                                    </a>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <a href={recaudacionApi.getFileUrl(f.id)} download className="text-gray-400 hover:text-gray-700 p-1">
+                                        <Download size={16} />
+                                    </a>
+                                    <button onClick={() => handleFileDelete(f.id)} className="text-red-400 hover:text-red-700 p-1">
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
                             </div>
+                        ))}
+                        {(!recaudacion.ficheros || recaudacion.ficheros.length === 0) && (
+                            <div className="text-center py-8 bg-gray-50 rounded border border-dashed border-gray-200 text-gray-400 italic">
+                                No hay documentos adjuntos
+                            </div>
+                        )}
+                    </div>
 
-                            {/* 4. Tasas (Editable) */}
-                            <div className="flex items-center justify-end w-full">
-                                <div className="flex flex-col items-end mr-4">
-                                    <span className="text-gray-600 font-medium uppercase">TASAS:</span>
-                                    <span className={`text-xs ${getFadedColorClass(tasaDiff)}`}>
-                                        (DIF: {formatCurrency(tasaDiff)})
+                    {/* Upload Buttons Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label className="flex items-center justify-center gap-2 w-full p-4 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition-colors group">
+                            <Upload size={20} className="group-hover:scale-110 transition-transform" />
+                            <span className="text-sm font-medium">{isUploading ? 'Subiendo...' : 'Adjuntar Documento'}</span>
+                            <input type="file" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
+                        </label>
+
+                        <label className="flex items-center justify-center gap-2 w-full p-4 bg-emerald-50 border border-emerald-200 rounded-lg cursor-pointer hover:bg-emerald-100 text-emerald-700 transition-colors group shadow-sm">
+                            <FileSpreadsheet size={20} className="group-hover:scale-110 transition-transform" />
+                            <div className="flex flex-col items-center leading-tight">
+                                <span className="text-xs font-semibold uppercase">Importar Excel</span>
+                                <span className="text-[10px] opacity-75">de Recaudación</span>
+                            </div>
+                            <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelImport} disabled={isUploading} />
+                        </label>
+                    </div>
+                    {uploadError && <p className="text-xs text-red-600 mt-2 text-center font-bold bg-red-50 p-2 rounded">{uploadError}</p>}
+                </div>
+
+                {/* Summary Section - Right Aligned Stack with Border */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-col items-end space-y-2 w-full lg:w-1/3 shrink-0">
+                    {(() => {
+                        return (
+                            <>
+                                {/* 1. Total Recaudación */}
+                                <div className="flex items-center justify-end w-full">
+                                    <span className="text-gray-600 font-medium mr-4 uppercase">TOTAL RECAUDACIÓN:</span>
+                                    <span className={`text-xl font-bold w-32 text-right ${getColorClass(totalRecaudacion)}`}>
+                                        {formatCurrency(totalRecaudacion)}
                                     </span>
                                 </div>
-                                <div className="w-32">
-                                    <MoneyInput
-                                        value={totalTasas}
-                                        onChange={(val) => handleGlobalUpdate('total_tasas', val)}
-                                        readOnly={false}
-                                        className={`font-bold ${getColorClass(totalTasas)}`}
-                                    />
+
+                                {/* 2. Pagos Manuales */}
+                                <div className="flex items-center justify-end w-full">
+                                    <span className="text-gray-600 font-medium mr-4 uppercase">PAGOS MANUALES:</span>
+                                    <span className={`text-xl font-bold w-32 text-right ${getColorClass(-pagosManuales)}`}>
+                                        {formatCurrency(pagosManuales)}
+                                    </span>
                                 </div>
-                            </div>
 
-                            {/* 5. Subtotal (Calculated) */}
-                            <div className="flex items-center justify-end w-full border-t border-gray-100 pt-2">
-                                <span className="text-gray-800 font-bold mr-4 uppercase">SUBTOTAL:</span>
-                                <span className={`text-xl font-bold w-32 text-right ${getColorClass(subtotal)}`}>
-                                    {formatCurrency(subtotal)}
-                                </span>
-                            </div>
-
-                            {/* 6. Depósitos (Editable) */}
-                            <div className="flex items-center justify-end w-full">
-                                <span className="text-gray-600 font-medium mr-4 uppercase">DEPÓSITOS:</span>
-                                <div className="w-32">
-                                    <MoneyInput
-                                        value={depositos}
-                                        onChange={(val) => handleGlobalUpdate('depositos', val)}
-                                        readOnly={false}
-                                        className={`font-bold ${getColorClass(depositos)}`}
-                                    />
+                                {/* 3. Ajustes */}
+                                <div className="flex items-center justify-end w-full">
+                                    <span className="text-gray-600 font-medium mr-4 uppercase">AJUSTES:</span>
+                                    <span className={`text-xl font-bold w-32 text-right ${getColorClass(totalAjustes)}`}>
+                                        {formatCurrency(totalAjustes)}
+                                    </span>
                                 </div>
-                            </div>
 
-                            {/* 7. Otros Conceptos (Editable) */}
-                            <div className="flex items-center justify-end w-full">
-                                <span className="text-gray-600 font-medium mr-4 uppercase">OTROS CONCEPTOS:</span>
-                                <div className="w-32">
-                                    <MoneyInput
-                                        value={otrosConceptos}
-                                        onChange={(val) => handleGlobalUpdate('otros_conceptos', val)}
-                                        readOnly={false}
-                                        className={`font-bold ${getColorClass(otrosConceptos)}`}
-                                    />
+                                {/* 4. Tasas (Editable) */}
+                                <div className="flex items-center justify-end w-full">
+                                    <div className="flex flex-col items-end mr-4">
+                                        <span className="text-gray-600 font-medium uppercase">TASAS:</span>
+                                        <span className={`text-xs ${getFadedColorClass(tasaDiff)}`}>
+                                            (DIF: {formatCurrency(tasaDiff)})
+                                        </span>
+                                    </div>
+                                    <div className="w-32">
+                                        <MoneyInput
+                                            value={totalTasas}
+                                            onChange={(val) => handleGlobalUpdate('total_tasas', val)}
+                                            readOnly={false}
+                                            className={`font-bold ${getColorClass(totalTasas)}`}
+                                        />
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* 8. TOTAL FINAL */}
-                            <div className="flex items-center justify-end w-full border-t-2 border-gray-300 pt-2 mt-2 whitespace-nowrap">
-                                <span className="text-gray-900 font-black text-lg mr-4 uppercase">TOTAL:</span>
-                                <span className={`text-2xl font-black text-right ${getColorClass(totalFinal)}`}>
-                                    {formatCurrency(totalFinal)}
-                                </span>
-                            </div>
-                        </>
-                    );
-                })()}
+                                {/* 5. Subtotal (Calculated) */}
+                                <div className="flex items-center justify-end w-full border-t border-gray-100 pt-2">
+                                    <span className="text-gray-800 font-bold mr-4 uppercase">SUBTOTAL:</span>
+                                    <span className={`text-xl font-bold w-32 text-right ${getColorClass(subtotal)}`}>
+                                        {formatCurrency(subtotal)}
+                                    </span>
+                                </div>
+
+                                {/* 6. Depósitos (Editable) */}
+                                <div className="flex items-center justify-end w-full">
+                                    <span className="text-gray-600 font-medium mr-4 uppercase">DEPÓSITOS:</span>
+                                    <div className="w-32">
+                                        <MoneyInput
+                                            value={depositos}
+                                            onChange={(val) => handleGlobalUpdate('depositos', val)}
+                                            readOnly={false}
+                                            className={`font-bold ${getColorClass(depositos)}`}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* 7. Otros Conceptos (Editable) */}
+                                <div className="flex items-center justify-end w-full">
+                                    <span className="text-gray-600 font-medium mr-4 uppercase">OTROS CONCEPTOS:</span>
+                                    <div className="w-32">
+                                        <MoneyInput
+                                            value={otrosConceptos}
+                                            onChange={(val) => handleGlobalUpdate('otros_conceptos', val)}
+                                            readOnly={false}
+                                            className={`font-bold ${getColorClass(otrosConceptos)}`}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* 8. TOTAL FINAL */}
+                                <div className="flex items-center justify-end w-full border-t-2 border-gray-300 pt-2 mt-2 whitespace-nowrap">
+                                    <span className="text-gray-900 font-black text-lg mr-4 uppercase">TOTAL:</span>
+                                    <span className={`text-2xl font-black text-right ${getColorClass(totalFinal)}`}>
+                                        {formatCurrency(totalFinal)}
+                                    </span>
+                                </div>
+                            </>
+                        );
+                    })()}
+                </div>
             </div>
         </div>
     );

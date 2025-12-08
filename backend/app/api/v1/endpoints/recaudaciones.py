@@ -1,13 +1,23 @@
 from typing import Any, List, Optional
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException
+import shutil
+import os
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, status
+from fastapi.responses import FileResponse
+from jose import jwt, JWTError
+from pydantic import ValidationError
+from app.core.config import settings
+from app.schemas.token import TokenPayload
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from app.db.session import get_db
 from app.crud.crud_recaudacion import recaudacion, recaudacion_maquina
 from app.schemas.recaudacion import (
     Recaudacion as RecaudacionSchema, RecaudacionSummary, RecaudacionCreate, RecaudacionUpdate,
-    RecaudacionMaquina as RecaudacionMaquinaSchema, RecaudacionMaquinaUpdate
+    RecaudacionMaquina as RecaudacionMaquinaSchema, RecaudacionMaquinaUpdate,
+    RecaudacionFichero as RecaudacionFicheroSchema
 )
+from app.models.recaudacion import RecaudacionFichero
 from app.api import deps
 from app.models.user import Usuario
 
@@ -120,3 +130,103 @@ async def delete_recaudacion(
         raise HTTPException(status_code=404, detail="Recaudacion not found")
     recaudacion_deleted = await recaudacion.remove(db, id=id)
     return recaudacion_deleted
+
+# --- File Handling ---
+
+UPLOAD_DIR = "/opt/CasinosSM/backend/uploads/recaudaciones"
+
+@router.post("/{id}/files", response_model=RecaudacionFicheroSchema)
+async def upload_recaudacion_file(
+    id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+) -> Any:
+    # Check if recaudacion exists
+    rec = await recaudacion.get(db, id=id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recaudacion not found")
+        
+    # Ensure directory exists
+    rec_dir = os.path.join(UPLOAD_DIR, str(id))
+    os.makedirs(rec_dir, exist_ok=True)
+    
+    # Save file
+    file_path = os.path.join(rec_dir, file.filename)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    # Create DB Entry
+    db_file = RecaudacionFichero(
+        recaudacion_id=id,
+        file_path=file_path,
+        filename=file.filename,
+        content_type=file.content_type,
+        created_at=datetime.now()
+    )
+    db.add(db_file)
+    await db.commit()
+    await db.refresh(db_file)
+    return db_file
+
+@router.delete("/{id}/files/{file_id}")
+async def delete_recaudacion_file(
+    id: int,
+    file_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+) -> Any:
+    stmt = select(RecaudacionFichero).where(RecaudacionFichero.id == file_id, RecaudacionFichero.recaudacion_id == id)
+    result = await db.execute(stmt)
+    db_file = result.scalars().first()
+    
+    if not db_file:
+         raise HTTPException(status_code=404, detail="File not found")
+         
+    # Delete from Disk
+    if os.path.exists(db_file.file_path):
+        os.remove(db_file.file_path)
+        
+    await db.delete(db_file)
+    await db.commit()
+    return {"status": "success"}
+
+@router.get("/files/{file_id}/content")
+async def get_file_content(
+    file_id: int,
+    db: AsyncSession = Depends(get_db),
+    token: Optional[str] = Query(None),
+) -> Any:
+    # Validate Token from Query Param
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        TokenPayload(**payload)
+    except (JWTError, ValidationError):
+        raise HTTPException(status_code=403, detail="Could not validate credentials")
+
+    stmt = select(RecaudacionFichero).where(RecaudacionFichero.id == file_id)
+    result = await db.execute(stmt)
+    db_file = result.scalars().first()
+    
+    if not db_file or not os.path.exists(db_file.file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    return FileResponse(
+        db_file.file_path, 
+        media_type=db_file.content_type or "application/octet-stream",
+        filename=db_file.filename,
+        content_disposition_type="inline"
+    )
+
+@router.post("/{id}/import-excel")
+async def import_recaudacion_excel(
+    id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+) -> Any:
+    # Stub for Excel Import
+    # In real impl: Parse Excel, update or create RecaudacionMaquina entries.
+    return {"status": "not_implemented_yet", "filename": file.filename}

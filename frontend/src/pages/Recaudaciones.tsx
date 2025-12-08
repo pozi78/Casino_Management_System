@@ -102,9 +102,10 @@ export default function Recaudaciones() {
             setRecaudaciones([newRec, ...recaudaciones]);
             setShowModal(false);
             navigate(`/recaudaciones/${newRec.id}`);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error creating recaudacion:", error);
-            alert("Error al crear la recaudación. Verifique que no haya solapamiento de fechas.");
+            const msg = error.response?.data?.detail || "Error al crear la recaudación. Verifique que no haya solapamiento de fechas.";
+            alert(msg);
         }
     };
 

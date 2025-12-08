@@ -80,9 +80,20 @@ from app.schemas.salon import Salon # Import Salon schema
 
 # ... (omitted)
 
+class RecaudacionFichero(BaseModel):
+    id: int
+    recaudacion_id: int
+    filename: str
+    content_type: Optional[str]
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
 class Recaudacion(RecaudacionBase):
     id: int
     detalles: List[RecaudacionMaquina] = []
+    ficheros: List[RecaudacionFichero] = []
     salon: Optional[Salon] = None
 
     class Config:

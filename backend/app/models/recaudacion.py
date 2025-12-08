@@ -21,9 +21,11 @@ class Recaudacion(Base):
 
     salon = relationship("Salon", back_populates="recaudaciones")
     detalles = relationship("RecaudacionMaquina", back_populates="recaudacion", cascade="all, delete-orphan")
+    ficheros = relationship("RecaudacionFichero", back_populates="recaudacion", cascade="all, delete-orphan")
 
     @property
     def total_bruto(self):
+
         if not self.detalles:
             return 0
         return sum(
@@ -85,3 +87,14 @@ class RecaudacionConceptoExtra(Base):
     tipo_concepto_extra_id = Column(Integer, ForeignKey("tipo_concepto_extra.id"))
     descripcion = Column(String)
     importe = Column(Numeric(12, 2))
+
+class RecaudacionFichero(Base):
+    __tablename__ = "recaudacion_fichero"
+    id = Column(Integer, primary_key=True, index=True)
+    recaudacion_id = Column(Integer, ForeignKey("recaudacion.id"), nullable=False)
+    file_path = Column(String, nullable=False)
+    filename = Column(String, nullable=False)
+    content_type = Column(String)
+    created_at = Column(DateTime)
+    
+    recaudacion = relationship("Recaudacion", back_populates="ficheros")

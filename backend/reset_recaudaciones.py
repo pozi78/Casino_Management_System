@@ -14,6 +14,7 @@ async def reset_recaudaciones():
         # Use TRUNCATE CASCADE to clean everything, restarting identity (IDs back to 1)
         # Order matters less with CASCADE but let's list them.
         tables = [
+            'recaudacion_fichero',
             'recaudacion_concepto_extra',
             'recaudacion_maquina',
             'recaudacion'
@@ -24,15 +25,24 @@ async def reset_recaudaciones():
         
         print("Executing TRUNCATE...")
         try:
-            await conn.execute(text("TRUNCATE TABLE recaudacion_concepto_extra, recaudacion_maquina, recaudacion RESTART IDENTITY CASCADE;"))
+            await conn.execute(text("TRUNCATE TABLE recaudacion_fichero, recaudacion_concepto_extra, recaudacion_maquina, recaudacion RESTART IDENTITY CASCADE;"))
             print("Truncate successful.")
         except Exception as e:
             print(f"Error during truncate: {e}")
             print("Attempting DELETE instead...")
+            await conn.execute(text("DELETE FROM recaudacion_fichero;"))
             await conn.execute(text("DELETE FROM recaudacion_concepto_extra;"))
             await conn.execute(text("DELETE FROM recaudacion_maquina;"))
             await conn.execute(text("DELETE FROM recaudacion;"))
             print("Delete successful.")
+
+    # Clean Disk
+    import shutil
+    uploads_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads", "recaudaciones")
+    if os.path.exists(uploads_dir):
+        print(f"Cleaning uploads directory: {uploads_dir}")
+        shutil.rmtree(uploads_dir)
+        os.makedirs(uploads_dir, exist_ok=True)
 
 if __name__ == "__main__":
     asyncio.run(reset_recaudaciones())
