@@ -40,11 +40,49 @@ const StatCard = ({ title, value, icon: Icon, trend, trendValue, color }: StatCa
 );
 
 import { useSalonFilter } from '../context/SalonFilterContext';
+import { statsApi } from '../api/stats';
+import type { DashboardStats } from '../api/stats';
+import { useState, useEffect } from 'react';
 
 // ... (StatCard component remains)
 
 export default function Dashboard() {
     const { selectedSalonIds } = useSalonFilter();
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            setIsLoading(true);
+            try {
+                // Pass selectedSalonIds. If empty or all logic depends on how context works.
+                // In SalonFilterContext: "isFiltered" can tell us.
+                // Backend expects list of IDs.
+                if (selectedSalonIds.length === 0) {
+                    setStats({
+                        ingresos_totales: 0,
+                        usuarios_activos: 0,
+                        salones_operativos: 0,
+                        maquinas_activas: 0
+                    });
+                    setIsLoading(false);
+                    return;
+                }
+                const data = await statsApi.getDashboardStats(selectedSalonIds);
+                setStats(data);
+            } catch (error) {
+                console.error("Error fetching dashboard stats:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchStats();
+    }, [selectedSalonIds]);
+
+    const formatCurrency = (value: number) => {
+        return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value);
+    };
 
     return (
         <div className="max-w-7xl mx-auto">
@@ -56,35 +94,35 @@ export default function Dashboard() {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <StatCard
-                    title="Ingresos Totales"
-                    value="€124,500"
+                    title="Ingresos Totales (50%)"
+                    value={isLoading ? "..." : formatCurrency(stats?.ingresos_totales || 0)}
                     icon={DollarSign}
                     trend="up"
-                    trendValue="+12.5%"
+                    trendValue="Acumulado" // Placeholder for now
                     color="bg-emerald-500"
                 />
                 <StatCard
                     title="Usuarios Activos"
-                    value="1,234"
+                    value={isLoading ? "..." : (stats?.usuarios_activos || 0)}
                     icon={Users}
                     trend="up"
-                    trendValue="+3.2%"
+                    trendValue="Total"
                     color="bg-blue-500"
                 />
                 <StatCard
                     title="Salones Operativos"
-                    value={selectedSalonIds.length}
+                    value={isLoading ? "..." : (stats?.salones_operativos || 0)}
                     icon={MapPin}
                     trend="up"
-                    trendValue="Active"
+                    trendValue="Activos"
                     color="bg-amber-500"
                 />
                 <StatCard
                     title="Máquinas en Uso"
-                    value="89%"
+                    value={isLoading ? "..." : (stats?.maquinas_activas || 0)}
                     icon={Activity}
-                    trend="down"
-                    trendValue="-1.5%"
+                    trend="up"
+                    trendValue="Total"
                     color="bg-purple-500"
                 />
             </div>

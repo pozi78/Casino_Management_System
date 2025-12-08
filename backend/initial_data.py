@@ -16,7 +16,12 @@ async def create_initial_data():
                 username="admin",
                 hash_password=get_password_hash("admin"),
                 nombre="Administrator",
-                activo=True
+                activo=True,
+                telefono="000000000",
+                telegram_user="admin_bot",
+                cargo="Superadmin",
+                departamento="IT",
+                codigo_empleado="ADM001"
             )
             session.add(user)
             await session.commit()

@@ -40,6 +40,19 @@ class Usuario(Base):
     hash_password = Column(String, nullable=False)
     activo = Column(Boolean, default=True)
 
+    # Mandatory fields
+    telefono = Column(String)
+    telegram_user = Column(String)
+    cargo = Column(String)
+    departamento = Column(String)
+    codigo_empleado = Column(String)
+
+    # Optional fields
+    dni = Column(String, nullable=True)
+    direccion_postal = Column(String, nullable=True)
+    notas = Column(String, nullable=True)
+    ultimo_acceso = Column(String, nullable=True) # Using String for simplicity/datetime sync, or could use DateTime
+
     roles = relationship("Rol", secondary=usuario_rol, backref="usuarios")
     
     # Scoped permissions associations

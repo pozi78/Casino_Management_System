@@ -125,7 +125,7 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
                                 `}
                             >
                                 {selectedSalonIds.length === 0 ? (
-                                    <span className="text-emerald-200/40 text-sm px-1 select-none">Todos los salones...</span>
+                                    <span className="text-emerald-200/40 text-sm px-1 select-none">Ningún salón seleccionado</span>
                                 ) : (
                                     selectedSalonIds.map(id => {
                                         const salon = availableSalons.find(s => s.id === id);

@@ -24,12 +24,22 @@ async def create_user(
     """
     # TODO: Check permissions (Admin only)
     
+    # Check for duplicate email
     result = await db.execute(select(Usuario).where(Usuario.email == user_in.email))
     user = result.scalars().first()
     if user:
         raise HTTPException(
             status_code=400,
             detail="The user with this email already exists in the system.",
+        )
+    
+    # Check for duplicate username
+    result = await db.execute(select(Usuario).where(Usuario.username == user_in.username))
+    user = result.scalars().first()
+    if user:
+        raise HTTPException(
+            status_code=400,
+            detail="The user with this username already exists in the system.",
         )
     
     encoded_password = security.get_password_hash(user_in.password)
@@ -39,6 +49,14 @@ async def create_user(
         hash_password=encoded_password,
         nombre=user_in.nombre,
         activo=user_in.activo,
+        telefono=user_in.telefono,
+        telegram_user=user_in.telegram_user,
+        cargo=user_in.cargo,
+        departamento=user_in.departamento,
+        codigo_empleado=user_in.codigo_empleado,
+        dni=user_in.dni,
+        direccion_postal=user_in.direccion_postal,
+        notas=user_in.notas
     )
     db.add(db_obj)
     await db.commit()
@@ -83,8 +101,6 @@ async def read_user_me(
         for salon in all_salons:
             if salon.id not in existing_ids:
                 # Add synthetic assignment with full permissions
-                # Note: We return a structure matching UsuarioSalon schema/model
-                # We can construct a dict or simple object
                 virtual_assignments.append({
                     "salon_id": salon.id,
                     "usuario_id": current_user.id,
@@ -93,10 +109,155 @@ async def read_user_me(
                     "salon": salon
                 })
         
-        # We need to ensure the response matches the Pydantic User schema.
-        # SQLAlchemy object `current_user` can be converted to dict and updated.
         user_dict = jsonable_encoder(current_user)
         user_dict['salones_asignados'] = virtual_assignments
         return user_dict
 
     return current_user
+
+@router.get("/", response_model=List[User])
+async def read_users(
+    db: AsyncSession = Depends(get_db),
+    skip: int = 0,
+    limit: int = 100,
+    current_user: Usuario = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Retrieve users.
+    """
+    from sqlalchemy.orm import selectinload
+    from app.models.user import UsuarioSalon
+
+    result = await db.execute(
+        select(Usuario)
+        .options(
+            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon)
+        )
+        .offset(skip).limit(limit)
+    )
+    users = result.scalars().all()
+    return users
+
+@router.get("/{user_id}", response_model=User)
+async def read_user_by_id(
+    user_id: int,
+    current_user: Usuario = Depends(deps.get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Get a specific user by id.
+    """
+    from sqlalchemy.orm import selectinload
+    from app.models.user import UsuarioSalon
+
+    result = await db.execute(
+        select(Usuario)
+        .options(
+            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon)
+        )
+        .where(Usuario.id == user_id)
+    )
+    user = result.scalars().first()
+    if user and user.id == current_user.id:
+        return user # use caching/logic from read_user_me if needed, but simple return is ok
+        
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="The user with this username does not exist in the system",
+        )
+    return user
+
+@router.put("/{user_id}", response_model=User)
+async def update_user(
+    *,
+    db: AsyncSession = Depends(get_db),
+    user_id: int,
+    user_in: UserUpdate,
+    current_user: Usuario = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Update a user.
+    """
+    from sqlalchemy.orm import selectinload
+    from app.models.user import UsuarioSalon
+    
+    result = await db.execute(
+        select(Usuario)
+        .options(
+            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon)
+        )
+        .where(Usuario.id == user_id)
+    )
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="The user with this username does not exist in the system",
+        )
+    
+    update_data = user_in.dict(exclude_unset=True)
+    if update_data.get("password"):
+        hashed_password = security.get_password_hash(update_data["password"])
+        del update_data["password"]
+        update_data["hash_password"] = hashed_password
+        
+    for field, value in update_data.items():
+        setattr(user, field, value)
+        
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    # Re-fetch to ensure relationships are loaded for response
+    # Or rely on expire_on_commit=False if set. 
+    # Safest is to rely on the already loaded relationships or reload.
+    # Since we did refresh, they might be unloaded.
+    
+    result = await db.execute(
+        select(Usuario)
+        .options(
+            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon)
+        )
+        .where(Usuario.id == user_id)
+    )
+    user = result.scalars().first()
+    
+    return user
+
+@router.delete("/{user_id}", response_model=User)
+async def delete_user(
+    *,
+    db: AsyncSession = Depends(get_db),
+    user_id: int,
+    current_user: Usuario = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Delete a user.
+    """
+    from sqlalchemy.orm import selectinload
+    from app.models.user import UsuarioSalon
+
+    # Prevent deleting yourself
+    if current_user.id == user_id:
+         raise HTTPException(
+            status_code=400,
+            detail="Users cannot delete themselves",
+        )
+
+    result = await db.execute(
+        select(Usuario)
+        .options(
+            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon)
+        )
+        .where(Usuario.id == user_id)
+    )
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="The user with this username does not exist in the system",
+        )
+    
+    await db.delete(user)
+    await db.commit()
+    return user
