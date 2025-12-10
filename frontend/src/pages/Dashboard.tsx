@@ -8,6 +8,9 @@ import {
 } from 'lucide-react';
 
 import type { LucideIcon } from 'lucide-react';
+import RevenueEvolutionChart from './dashboard/RevenueEvolutionChart';
+import SalonDistributionChart from './dashboard/SalonDistributionChart';
+import TopMachinesTable from './dashboard/TopMachinesTable';
 
 interface StatCardProps {
     title: string;
@@ -44,71 +47,258 @@ import { statsApi } from '../api/stats';
 import type { DashboardStats } from '../api/stats';
 import { useState, useEffect } from 'react';
 
-// ... (StatCard component remains)
+import DashboardFilters from '../components/dashboard/DashboardFilters';
 
 export default function Dashboard() {
-    const { selectedSalonIds } = useSalonFilter();
+    const { selectedSalonIds, availableSalons } = useSalonFilter();
+
+    // Filters State
+    const [filtersMetadata, setFiltersMetadata] = useState<any>({ years: [], months: [], machines: [] });
+    const [activeFilters, setActiveFilters] = useState({
+        years: [],
+        months: [],
+        machine_ids: []
+    });
+
     const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [revenueEvolution, setRevenueEvolution] = useState<any[]>([]);
+    const [revenueBySalon, setRevenueBySalon] = useState<any[]>([]);
+    const [topMachines, setTopMachines] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+
+    // Initial load of metadata
+    useEffect(() => {
+        const loadMetadata = async () => {
+            try {
+                const data = await statsApi.getFiltersMetadata();
+                setFiltersMetadata(data);
+
+                const currentYear = new Date().getFullYear();
+                const defaultYear = data.years.includes(currentYear) ? [currentYear] : (data.years.length > 0 ? [data.years[0]] : []);
+                const allMonths = data.months.map((m: any) => m.id);
+                const allMachines = data.machines.map((m: any) => m.id);
+
+                setActiveFilters(prev => ({
+                    ...prev,
+                    years: defaultYear,
+                    months: allMonths,
+                    machine_ids: allMachines // Select all machines by default
+                }));
+
+            } catch (e) {
+                console.error("Failed to load filters metadata", e);
+            }
+        };
+        loadMetadata();
+    }, []);
 
     useEffect(() => {
         const fetchStats = async () => {
             setIsLoading(true);
+
+            // Standard Behavior: If user explicitly deselects all salons, or any other primary filter, show no data.
+            if (selectedSalonIds.length === 0 ||
+                activeFilters.years.length === 0 ||
+                activeFilters.months.length === 0 ||
+                activeFilters.machine_ids.length === 0) {
+                setStats({
+                    ingresos_totales: 0,
+                    usuarios_activos: 0,
+                    salones_operativos: 0,
+                    maquinas_activas: 0
+                });
+                setRevenueEvolution([]);
+                setRevenueBySalon([]);
+                setTopMachines([]);
+                setIsLoading(false);
+                return;
+            }
+
+            // 1. Fetch Main Stats (Ingresos, Usuarios, etc)
             try {
-                // Pass selectedSalonIds. If empty or all logic depends on how context works.
-                // In SalonFilterContext: "isFiltered" can tell us.
-                // Backend expects list of IDs.
-                if (selectedSalonIds.length === 0) {
-                    setStats({
-                        ingresos_totales: 0,
-                        usuarios_activos: 0,
-                        salones_operativos: 0,
-                        maquinas_activas: 0
-                    });
-                    setIsLoading(false);
-                    return;
+                // OPTIMIZATION: If all machines, all months, OR ALL SALONS are selected, send empty list 
+                // to avoid URL length limits and to trigger efficient backend logic.
+
+                const isAllMonths = activeFilters.months.length === filtersMetadata.months.length;
+                // REMOVED OPTIMIZATION: Always send machine_ids to force sum-of-parts calculation.
+                // This ensures consistency preventing backend from switching to "Global Total" which caused discrepancies.
+                const isAllSalons = availableSalons.length > 0 && selectedSalonIds.length === availableSalons.length;
+
+                const queryFilters = {
+                    salon_ids: isAllSalons ? undefined : (selectedSalonIds.length > 0 ? selectedSalonIds : undefined),
+                    years: activeFilters.years,
+                    months: isAllMonths ? undefined : activeFilters.months,
+                    machine_ids: activeFilters.machine_ids
+                };
+
+                // Fetch Stats separately so cards always load
+                try {
+                    const statsData = await statsApi.getDashboardStats(queryFilters);
+                    setStats(statsData);
+                } catch (error) {
+                    console.error("Error fetching main stats:", error);
                 }
-                const data = await statsApi.getDashboardStats(selectedSalonIds);
-                setStats(data);
+
+                // Fetch Charts in parallel, but allow them to fail individually without blocking stats
+                const [evolutionResult, salonResult, machinesResult] = await Promise.allSettled([
+                    statsApi.getRevenueEvolution(queryFilters),
+                    statsApi.getRevenueBySalon(queryFilters),
+                    statsApi.getTopMachines(queryFilters)
+                ]);
+
+                if (evolutionResult.status === 'fulfilled') setRevenueEvolution(evolutionResult.value);
+                else console.error("Error fetching revenue evolution:", evolutionResult.reason);
+
+                if (salonResult.status === 'fulfilled') setRevenueBySalon(salonResult.value);
+                else console.error("Error fetching salon distribution:", salonResult.reason);
+
+                if (machinesResult.status === 'fulfilled') setTopMachines(machinesResult.value);
+                else console.error("Error fetching top machines:", machinesResult.reason);
+
             } catch (error) {
-                console.error("Error fetching dashboard stats:", error);
+                console.error("Error in dashboard orchestration:", error);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchStats();
-    }, [selectedSalonIds]);
+    }, [selectedSalonIds, activeFilters]);
+
+    // Dynamic Metadata Update: When years change, update available machines to include historical ones
+    useEffect(() => {
+        const updateMachines = async () => {
+            try {
+                // Fetch new metadata based on selected years
+                const data = await statsApi.getFiltersMetadata(activeFilters.years);
+
+                setFiltersMetadata((prev: any) => {
+                    // Logic to auto-select NEW machines that weren't in the previous list
+                    // We need to compare data.machines vs prev.machines
+                    const previousMachineIds = new Set(prev.machines.map((m: any) => m.id));
+                    const newMachines = data.machines.filter((m: any) => !previousMachineIds.has(m.id));
+                    const newMachineIds = newMachines.map((m: any) => m.id);
+
+                    if (newMachineIds.length > 0) {
+                        setActiveFilters(currentFilters => ({
+                            ...currentFilters,
+                            machine_ids: [...currentFilters.machine_ids, ...newMachineIds] // Add only new ones
+                        }));
+                    }
+
+                    return {
+                        ...prev,
+                        machines: data.machines
+                    };
+                });
+            } catch (error) {
+                console.error("Failed to update machines metadata", error);
+            }
+        };
+
+        if (filtersMetadata.years.length > 0) {
+            updateMachines();
+        }
+    }, [activeFilters.years]);
 
     const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value);
     };
 
     return (
-        <div className="max-w-7xl mx-auto">
-            <header className="mb-8">
+        <div className="max-w-7xl mx-auto space-y-8">
+            <header>
                 <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
                 <p className="text-gray-500 mt-1">Bienvenido al panel de administración de Atlantic & Mistery.</p>
             </header>
 
+            <DashboardFilters
+                metadata={filtersMetadata}
+                filters={activeFilters}
+                onChange={setActiveFilters}
+                salons={availableSalons}
+            />
+
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <StatCard
-                    title="Ingresos Totales (50%)"
-                    value={isLoading ? "..." : formatCurrency(stats?.ingresos_totales || 0)}
-                    icon={DollarSign}
-                    trend="up"
-                    trendValue="Acumulado" // Placeholder for now
-                    color="bg-emerald-500"
-                />
-                <StatCard
-                    title="Usuarios Activos"
-                    value={isLoading ? "..." : (stats?.usuarios_activos || 0)}
-                    icon={Users}
-                    trend="up"
-                    trendValue="Total"
-                    color="bg-blue-500"
-                />
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* Annual Revenue Card - Double Size */}
+                <div className="md:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between mb-4">
+                        <div>
+                            <p className="text-sm font-medium text-gray-500">
+                                {selectedSalonIds.length === 1
+                                    ? "Ingreso Anual del Salón (50%)"
+                                    : "Ingreso Anual de los Salones (50%)"}
+                            </p>
+                            <h3 className="text-2xl font-bold text-gray-900 mt-1">
+                                {isLoading ? "..." : formatCurrency(stats?.ingresos_totales || 0)}
+                            </h3>
+                        </div>
+                        <div className="p-3 rounded-xl bg-emerald-500">
+                            <DollarSign className="w-6 h-6 text-white" />
+                        </div>
+                    </div>
+
+                    {/* Annual Breakdown */}
+                    <div className="border-t border-gray-100 pt-4 mt-2">
+                        {!isLoading && stats?.ingresos_por_anio && stats.ingresos_por_anio.length > 0 ? (
+                            (() => {
+                                // Determine columns dynamically based on data available
+                                const allSalonNames = Array.from(new Set(
+                                    stats.ingresos_por_anio.flatMap(item => Object.keys(item.salones || {}))
+                                )).sort();
+
+                                const isMultiSalon = allSalonNames.length > 1;
+
+                                if (isMultiSalon) {
+                                    return (
+                                        <table className="w-full text-sm text-left">
+                                            <thead className="text-xs text-gray-500 font-semibold bg-gray-50 sticky top-0">
+                                                <tr>
+                                                    <th className="py-2 pl-2">Año</th>
+                                                    {allSalonNames.map(name => <th key={name} className="py-2 px-2">{name}</th>)}
+                                                    <th className="py-2 pr-2 text-right">Total</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {stats.ingresos_por_anio.map((item) => (
+                                                    <tr key={item.anio}>
+                                                        <td className="py-2 pl-2 font-medium text-gray-900">{item.anio}</td>
+                                                        {allSalonNames.map(name => (
+                                                            <td key={name} className="py-2 px-2 text-gray-600">
+                                                                {item.salones[name] ? formatCurrency(item.salones[name]) : '-'}
+                                                            </td>
+                                                        ))}
+                                                        <td className="py-2 pr-2 text-right font-bold text-emerald-600">
+                                                            {formatCurrency(item.total)}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    );
+                                } else {
+                                    // Single list view
+                                    return (
+                                        <div className="space-y-3">
+                                            {stats.ingresos_por_anio.map((item) => (
+                                                <div key={item.anio} className="flex items-center justify-between text-sm">
+                                                    <span className="font-medium text-gray-700">{item.anio}</span>
+                                                    <span className="font-semibold text-gray-900">{formatCurrency(item.total)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                }
+                            })()
+                        ) : (
+                            !isLoading && <p className="text-sm text-gray-400 text-center py-2">No hay datos para desglose anual</p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Salones Operativos */}
                 <StatCard
                     title="Salones Operativos"
                     value={isLoading ? "..." : (stats?.salones_operativos || 0)}
@@ -117,6 +307,8 @@ export default function Dashboard() {
                     trendValue="Activos"
                     color="bg-amber-500"
                 />
+
+                {/* Maquinas en Uso */}
                 <StatCard
                     title="Máquinas en Uso"
                     value={isLoading ? "..." : (stats?.maquinas_activas || 0)}
@@ -127,17 +319,20 @@ export default function Dashboard() {
                 />
             </div>
 
-            {/* Recent Activity / Charts Placeholder */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-96 flex flex-col items-center justify-center text-gray-400">
-                    <TrendingUp size={48} className="mb-4 opacity-20" />
-                    <p>Gráfico de Recaudación (Próximamente)</p>
-                </div>
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-96 flex flex-col items-center justify-center text-gray-400">
-                    <Activity size={48} className="mb-4 opacity-20" />
-                    <p>Actividad de Máquinas en Tiempo Real</p>
-                </div>
+            {/* Analytics Charts */}
+            <div className="grid grid-cols-1 gap-8">
+                <RevenueEvolutionChart
+                    data={revenueEvolution}
+                />
+                <SalonDistributionChart data={revenueBySalon} />
+            </div>
+
+            {/* Top Machines Table */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-6">Top 10 Máquinas (Neto)</h3>
+                <TopMachinesTable machines={topMachines} />
             </div>
         </div>
     );
 }
+
