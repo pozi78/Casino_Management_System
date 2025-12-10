@@ -153,9 +153,60 @@ export const recaudacionApi = {
         return `${cleanBase}/recaudaciones/files/${file_id}/content?token=${token}`;
     },
 
-    importExcel: async (id: number, file: File) => {
+    analyzeExcel: async (id: number, file: File) => {
         const formData = new FormData();
         formData.append('file', file);
+        const response = await axiosInstance.post<{
+            mappings: { excel_name: string; mapped_puesto_id: number | null; is_ignored: boolean }[];
+            puestos: { id: number; name: string }[];
+        }>(`/recaudaciones/${id}/analyze-excel`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    },
+
+    analyzeFile: async (id: number, file_id: number) => {
+        const response = await axiosInstance.post<{
+            mappings: { excel_name: string; mapped_puesto_id: number | null; is_ignored: boolean }[];
+            puestos: { id: number; name: string }[];
+        }>(`/recaudaciones/${id}/files/${file_id}/analyze`);
+        return response.data;
+    },
+
+    exportExcel: async (id: number) => {
+        const response = await axiosInstance.get(`/recaudaciones/${id}/export-excel`, {
+            responseType: 'blob'
+        });
+
+        // Create download link
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        const contentDisposition = response.headers['content-disposition'];
+        let fileName = `Recaudacion_${id}.xlsx`;
+        if (contentDisposition) {
+            // Robust filename parsing
+            const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
+            if (matches != null && matches[1]) {
+                fileName = matches[1].replace(/['"]/g, '');
+            }
+        }
+        link.setAttribute('download', fileName);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    },
+
+    importExcel: async (id: number, file: File, mappings?: Record<string, number | null>) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        if (mappings) {
+            const cleanMap: Record<string, number> = {};
+            Object.entries(mappings).forEach(([k, v]) => {
+                if (v) cleanMap[k] = v;
+            });
+            formData.append('mappings_str', JSON.stringify(cleanMap));
+        }
         const response = await axiosInstance.post(`/recaudaciones/${id}/import-excel`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
