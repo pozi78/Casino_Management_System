@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, Numeric, Date, ForeignKey, func, Text
+from sqlalchemy import Column, Integer, String, Boolean, Numeric, Date, ForeignKey, func, Text, UniqueConstraint
 from sqlalchemy.orm import relationship, backref
 from app.db.base_class import Base
 
@@ -85,3 +85,17 @@ class Puesto(Base):
     eliminado = Column(Boolean, default=False) # Soft delete
     
     maquina = relationship("Maquina", back_populates="puestos")
+
+class MaquinaExcelMap(Base):
+    __tablename__ = "maquina_excel_map"
+    id = Column(Integer, primary_key=True, index=True)
+    salon_id = Column(Integer, ForeignKey("salon.id"), nullable=False)
+    excel_nombre = Column(String, nullable=False)
+    
+    maquina_id = Column(Integer, ForeignKey("maquina.id"), nullable=True)
+    puesto_id = Column(Integer, ForeignKey("puesto.id"), nullable=True)
+    is_ignored = Column(Boolean, default=False)
+
+    __table_args__ = (
+        UniqueConstraint('salon_id', 'excel_nombre', name='uq_excel_map_salon_nombre'),
+    )

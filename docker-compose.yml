@@ -17,6 +17,7 @@ services:
       - database
     volumes:
       - ./backend:/app # Hot reload for dev
+      - ./documents:/opt/CasinosSM/documents
     networks:
       - botnet_dev
 

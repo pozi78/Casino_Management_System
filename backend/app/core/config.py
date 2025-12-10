@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 # 1 hour
     
+    UPLOAD_DIR: str = "/opt/CasinosSM/documents"
+    
     BACKEND_CORS_ORIGINS: list[str] = [
         "http://localhost",
         "http://localhost:5173",
