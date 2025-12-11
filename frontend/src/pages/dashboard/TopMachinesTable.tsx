@@ -2,7 +2,9 @@ import { Trophy } from 'lucide-react';
 
 interface DataPoint {
     name: string;
-    value: number;
+    bruto: number;
+    tasa: number;
+    neto: number;
 }
 
 interface Props {
@@ -13,7 +15,7 @@ export default function TopMachinesTable({ machines = [] }: Props) {
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-full">
             <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-gray-900">Top Máquinas</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Rendimiento por Máquina (50%)</h3>
                 <Trophy className="text-amber-500 w-5 h-5" />
             </div>
 
@@ -22,7 +24,9 @@ export default function TopMachinesTable({ machines = [] }: Props) {
                     <thead>
                         <tr className="text-left border-b border-gray-100">
                             <th className="pb-3 font-medium text-gray-500 text-sm">Máquina</th>
-                            <th className="pb-3 font-medium text-gray-500 text-sm text-right">Rendimiento (50%)</th>
+                            <th className="pb-3 font-medium text-gray-500 text-sm text-right">Bruto</th>
+                            <th className="pb-3 font-medium text-gray-500 text-sm text-right">Tasa</th>
+                            <th className="pb-3 font-medium text-gray-900 text-sm text-right">Neto</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
@@ -34,8 +38,14 @@ export default function TopMachinesTable({ machines = [] }: Props) {
                                     </span>
                                     {item.name}
                                 </td>
-                                <td className="py-3 text-sm text-gray-900 text-right font-medium">
-                                    {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(item.value)}
+                                <td className="py-3 text-sm text-gray-500 text-right">
+                                    {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(item.bruto)}
+                                </td>
+                                <td className="py-3 text-sm text-red-500 text-right">
+                                    -{new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(item.tasa)}
+                                </td>
+                                <td className="py-3 text-sm text-gray-900 text-right font-bold">
+                                    {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(item.neto)}
                                 </td>
                             </tr>
                         ))}

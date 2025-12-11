@@ -1,10 +1,171 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FileText, Trash2, X, AlertTriangle } from 'lucide-react';
+import { Plus, FileText, Trash2, X, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { recaudacionApi, type Recaudacion, type RecaudacionCreate } from '../api/recaudaciones';
 import { salonesApi, type Salon } from '../api/salones';
 import { formatCurrency, getCurrencyClasses } from '../utils/currency';
 import { useSalonFilter } from '../context/SalonFilterContext';
+
+// TYPES
+type GroupingKey = 'salon' | 'year' | 'month';
+
+// HELPERS
+const getSalonInitials = (name: string) => {
+    return name.split(' ').map(word => word[0]).join('').substring(0, 2).toUpperCase();
+};
+
+const getSalonColor = (name: string) => {
+    const colors = [
+        'bg-green-500', 'bg-emerald-500', 'bg-teal-500',
+        'bg-cyan-500', 'bg-sky-500', 'bg-blue-500',
+        'bg-indigo-500', 'bg-green-600', 'bg-blue-600',
+        'bg-teal-600', 'bg-cyan-600', 'bg-indigo-600'
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+};
+
+const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const dayName = date.toLocaleDateString('es-ES', { weekday: 'short' });
+    const dayNameCap = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+    const datePart = date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timePart = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    return `${dayNameCap} ${datePart} ${timePart}`;
+};
+
+const getDaysDiff = (start: string, end: string) => {
+    const d1 = new Date(start);
+    const d2 = new Date(end);
+    const diffTime = Math.abs(d2.getTime() - d1.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+};
+
+// COMPONENTS
+const calculateTotal = (groupData: any): number => {
+    if (Array.isArray(groupData)) {
+        return groupData.reduce((sum: any, rec: any) => sum + ((Number(rec.total_global) || 0) / 2), 0);
+    }
+    return Object.values(groupData).reduce((sum: number, val: any) => sum + calculateTotal(val), 0);
+};
+
+const GroupItem = ({ groupKey, value, depthKeys, type, navigate, salones, activeGroupingKeys }: any) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const groupTotal = calculateTotal(value);
+
+    return (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div
+                onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    setIsExpanded(!isExpanded);
+                }}
+                className="bg-gray-50 px-4 py-3 border-b border-gray-200 font-bold text-gray-800 flex items-center gap-4 cursor-pointer hover:bg-gray-100 transition-colors"
+            >
+                <div className="text-gray-400">
+                    {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs text-white shadow-sm font-bold ${type === 'salon' ? getSalonColor(groupKey) :
+                        type === 'year' ? 'bg-purple-600' :
+                            'bg-amber-500'
+                        }`}>
+                        {type === 'salon' ? getSalonInitials(groupKey) : type === 'year' ? 'Año' : 'Mes'}
+                    </span>
+                    {groupKey}
+                </div>
+                <span className={`text-sm ${getCurrencyClasses(groupTotal)}`}>
+                    ({formatCurrency(groupTotal)})
+                </span>
+            </div>
+            {isExpanded && (
+                <div className="p-2 border-l-4 border-gray-100">
+                    <GroupedRenderer
+                        data={value}
+                        depthKeys={depthKeys}
+                        navigate={navigate}
+                        salones={salones}
+                        activeGroupingKeys={activeGroupingKeys}
+                    />
+                </div>
+            )}
+        </div>
+    );
+};
+
+const GroupedRenderer = ({ data, depthKeys, navigate, salones, activeGroupingKeys }: any) => {
+    // Base case: leaf node is Array of Recaudacion
+    if (Array.isArray(data)) {
+        const getSalonName = (id: number) => salones.find((s: any) => s.id === id)?.nombre || 'Unknown';
+
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-2">
+                {data.map((rec: Recaudacion) => (
+                    <div
+                        key={rec.id}
+                        onClick={() => navigate(`/recaudaciones/${rec.id}`)}
+                        className="bg-white p-3 rounded border border-gray-200 hover:shadow-md cursor-pointer transition-shadow flex justify-between items-center group"
+                    >
+                        <div>
+                            {!activeGroupingKeys.includes('salon') && (
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white shadow-sm font-bold ${getSalonColor(getSalonName(rec.salon_id))}`}>
+                                        {getSalonInitials(getSalonName(rec.salon_id))}
+                                    </span>
+                                    <span className="text-xs font-bold text-gray-700">{getSalonName(rec.salon_id)}</span>
+                                </div>
+                            )}
+                            <div className="font-bold text-gray-900">{formatDate(rec.fecha_fin)}</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                                {rec.etiqueta && <span className="bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded mr-2">{rec.etiqueta}</span>}
+                                <span className="text-gray-400">{getDaysDiff(rec.fecha_inicio, rec.fecha_fin)} días</span>
+                            </div>
+                        </div>
+                        <div className={`font-bold text-sm ${getCurrencyClasses((Number(rec.total_global) || 0) / 2)}`}>
+                            {formatCurrency((Number(rec.total_global) || 0) / 2)}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    // Recursive case: render sections
+    const currentKeyType = depthKeys[0];
+    let entries = Object.entries(data);
+
+    // Sort entries
+    if (currentKeyType === 'year') {
+        entries.sort((a, b) => Number(b[0]) - Number(a[0]));
+    } else if (currentKeyType === 'month') {
+        const monthsOrder = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        entries.sort((a, b) => monthsOrder.indexOf(b[0]) - monthsOrder.indexOf(a[0]));
+    } else {
+        entries.sort((a, b) => a[0].localeCompare(b[0]));
+    }
+
+    return (
+        <div className="space-y-4 ml-2">
+            {entries.map(([key, value]) => (
+                <GroupItem
+                    key={key}
+                    groupKey={key}
+                    value={value}
+                    depthKeys={depthKeys.slice(1)}
+                    type={currentKeyType}
+                    navigate={navigate}
+                    salones={salones}
+                    activeGroupingKeys={activeGroupingKeys}
+                />
+            ))}
+        </div>
+    );
+};
 
 export default function Recaudaciones() {
     const navigate = useNavigate();
@@ -14,8 +175,66 @@ export default function Recaudaciones() {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
 
+    // Dynamic Grouping State
+    const [activeGroupingKeys, setActiveGroupingKeys] = useState<GroupingKey[]>(() => {
+        const saved = localStorage.getItem('recaudaciones_grouping_keys');
+        return saved ? JSON.parse(saved) : [];
+    });
+
+    useEffect(() => {
+        localStorage.setItem('recaudaciones_grouping_keys', JSON.stringify(activeGroupingKeys));
+    }, [activeGroupingKeys]);
+
+    const toggleGroupingKey = (key: GroupingKey) => {
+        setActiveGroupingKeys(prev => {
+            if (prev.includes(key)) {
+                return prev.filter(k => k !== key);
+            } else {
+                return [...prev, key];
+            }
+        });
+    };
+
+    // Recursive Grouping Helper
+    const recursiveGroup = (data: Recaudacion[], keys: GroupingKey[]): any => {
+        if (keys.length === 0) return data;
+
+        const currentKey = keys[0];
+        const grouped: Record<string, Recaudacion[]> = {};
+
+        // Helper inside to get name
+        const getSalonName = (id: number) => salones.find(s => s.id === id)?.nombre || 'Unknown';
+
+        data.forEach(rec => {
+            let groupValue = 'Unknown';
+            const date = new Date(rec.fecha_fin || rec.fecha_cierre);
+
+            if (currentKey === 'salon') {
+                groupValue = getSalonName(rec.salon_id);
+            } else if (currentKey === 'year') {
+                groupValue = date.getFullYear().toString();
+            } else if (currentKey === 'month') {
+                const m = date.toLocaleString('es-ES', { month: 'long' });
+                groupValue = m.charAt(0).toUpperCase() + m.slice(1);
+            }
+
+            if (!grouped[groupValue]) grouped[groupValue] = [];
+            grouped[groupValue].push(rec);
+        });
+
+        // Recursively group children
+        const result: Record<string, any> = {};
+        Object.keys(grouped).forEach(key => {
+            result[key] = recursiveGroup(grouped[key], keys.slice(1));
+        });
+
+        return result;
+    };
+
     // Filter recaudaciones
     const filteredRecaudaciones = recaudaciones.filter(rec => selectedSalonIds.includes(rec.salon_id));
+
+    const getSalonName = (id: number) => salones.find(s => s.id === id)?.nombre || 'Unknown';
 
     // Delete Modal State
     const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -123,34 +342,45 @@ export default function Recaudaciones() {
         }
     };
 
-    const getSalonName = (id: number) => salones.find(s => s.id === id)?.nombre || 'Unknown';
-
-    // Helper to format date like "Lun 20/03/2024 06:00"
-    const formatDate = (dateStr: string) => {
-        if (!dateStr) return '';
-        const date = new Date(dateStr);
-        const dayName = date.toLocaleDateString('es-ES', { weekday: 'short' });
-        const dayNameCap = dayName.charAt(0).toUpperCase() + dayName.slice(1);
-        const datePart = date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const timePart = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-        return `${dayNameCap} ${datePart} ${timePart}`;
-    };
-
-    const getDaysDiff = (start: string, end: string) => {
-        const d1 = new Date(start);
-        const d2 = new Date(end);
-        const diffTime = Math.abs(d2.getTime() - d1.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays;
-    };
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">Recaudaciones</h1>
                     <p className="text-gray-500">Gestión de recaudaciones y lecturas</p>
                 </div>
+
+                {/* View Controls */}
+                <div className="flex items-center gap-4 bg-white p-1.5 rounded-lg border border-gray-200 shadow-sm">
+                    <span className="text-sm font-medium text-gray-700 ml-2">Agrupar por:</span>
+                    <div className="flex gap-2">
+                        {(['salon', 'year', 'month'] as GroupingKey[]).map(key => (
+                            <button
+                                key={key}
+                                onClick={() => toggleGroupingKey(key)}
+                                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${activeGroupingKeys.includes(key)
+                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
+                                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                                    }`}
+                            >
+                                {key === 'salon' ? 'Salón' : key === 'year' ? 'Año' : 'Mes'}
+                            </button>
+                        ))}
+                    </div>
+                    {activeGroupingKeys.length > 0 && (
+                        <>
+                            <div className="border-l border-gray-300 h-5 mx-1"></div>
+                            <button
+                                onClick={() => setActiveGroupingKeys([])}
+                                className="text-xs text-red-500 hover:text-red-700 font-medium mr-2"
+                            >
+                                Limpiar
+                            </button>
+                        </>
+                    )}
+                </div>
+
                 <button
                     onClick={() => setShowModal(true)}
                     className="flex items-center justify-center px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-lg hover:from-emerald-700 hover:to-emerald-600 shadow-lg shadow-emerald-500/20 transition-all font-medium"
@@ -165,6 +395,14 @@ export default function Recaudaciones() {
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
                     <p className="mt-4 text-gray-600">Cargando recaudaciones...</p>
                 </div>
+            ) : activeGroupingKeys.length > 0 ? (
+                <GroupedRenderer
+                    data={recursiveGroup(filteredRecaudaciones, activeGroupingKeys)}
+                    depthKeys={activeGroupingKeys}
+                    navigate={navigate}
+                    salones={salones}
+                    activeGroupingKeys={activeGroupingKeys}
+                />
             ) : (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <table className="min-w-full divide-y divide-gray-200">
@@ -183,7 +421,12 @@ export default function Recaudaciones() {
                                 <tr key={rec.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/recaudaciones/${rec.id}`)}>
 
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                        {getSalonName(rec.salon_id)}
+                                        <div className="flex items-center gap-3">
+                                            <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs text-white shadow-sm font-bold ${getSalonColor(getSalonName(rec.salon_id))}`}>
+                                                {getSalonInitials(getSalonName(rec.salon_id))}
+                                            </span>
+                                            {getSalonName(rec.salon_id)}
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         <div className="flex flex-col">

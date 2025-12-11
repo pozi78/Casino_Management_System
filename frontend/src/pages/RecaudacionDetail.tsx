@@ -89,11 +89,29 @@ export default function RecaudacionDetail() {
             if (data.detalles) {
                 // Sort details by machine name then puesto
                 if (data.detalles) {
+                    // Group by machine name to count occurrences (Multipuesto vs Monopuesto)
+                    const counts: Record<string, number> = {};
+                    data.detalles.forEach((d: RecaudacionMaquina) => {
+                        const name = (d.maquina?.nombre || '').toString();
+                        counts[name] = (counts[name] || 0) + 1;
+                    });
+
                     data.detalles.sort((a: RecaudacionMaquina, b: RecaudacionMaquina) => {
                         const nameA = (a.maquina?.nombre || '').toString();
                         const nameB = (b.maquina?.nombre || '').toString();
+
+                        // 1. Multipuesto Priority
+                        const isMultiA = counts[nameA] > 1;
+                        const isMultiB = counts[nameB] > 1;
+
+                        if (isMultiA && !isMultiB) return -1;
+                        if (!isMultiA && isMultiB) return 1;
+
+                        // 2. Name
                         const nameComp = nameA.localeCompare(nameB);
                         if (nameComp !== 0) return nameComp;
+
+                        // 3. Puesto Number
                         return (a.puesto?.numero_puesto || 0) - (b.puesto?.numero_puesto || 0);
                     });
                 }
@@ -313,6 +331,10 @@ export default function RecaudacionDetail() {
     };
 
 
+    // Color Helpers as per user request
+    const getTableColor = (val: number) => val > 0 ? 'text-emerald-600 font-bold' : (val < 0 ? 'text-red-600 font-bold' : 'text-gray-900');
+    const redClass = "text-red-600 font-bold";
+
     return (
         <div className="space-y-6">
             <div ref={headerRef} className="sticky top-0 z-50 bg-gray-100 py-4 border-b border-gray-200 -mx-8 -mt-8 px-8 shadow-sm">
@@ -350,7 +372,7 @@ export default function RecaudacionDetail() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 md:overflow-visible overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
                     <thead className="bg-gray-50">
-                        <tr>
+                        <tr className="divide-x divide-gray-100">
                             <th style={{ top: headerHeight }} className="sticky z-40 bg-gray-50 px-2 py-2 text-left font-medium text-gray-500 uppercase tracking-wider shadow-sm transition-all">MÁQUINA</th>
                             <th style={{ top: headerHeight }} className="sticky z-40 bg-gray-50 px-2 py-2 text-center font-medium text-gray-500 uppercase tracking-wider shadow-sm transition-all">RETIRADA EFECTIVO</th>
                             <th style={{ top: headerHeight }} className="sticky z-40 bg-gray-50 px-2 py-2 text-center font-medium text-gray-500 uppercase tracking-wider shadow-sm transition-all">CAJÓN</th>
@@ -375,13 +397,24 @@ export default function RecaudacionDetail() {
                             const nextRowIdx = idx + 1;
                             const hasNextRow = recaudacion.detalles && nextRowIdx < recaudacion.detalles.length;
 
-                            // Color Helpers as per user request
-                            const getPositiveClass = (val: number) => val > 0 ? 'text-emerald-600 font-bold' : (val < 0 ? 'text-red-600 font-bold' : 'text-gray-900');
-                            const redClass = "text-red-600 font-bold";
-                            const greenClass = "text-emerald-600 font-bold";
+                            // Grouping Logic
+                            const currentName = detail.maquina?.nombre || '';
+                            const prevName = idx > 0 && recaudacion.detalles ? (recaudacion.detalles[idx - 1].maquina?.nombre || '') : null;
+                            const nextName = hasNextRow && recaudacion.detalles ? (recaudacion.detalles[nextRowIdx].maquina?.nombre || '') : null;
+
+                            const isStart = currentName !== prevName;
+                            const isEnd = currentName !== nextName;
+
 
                             return (
-                                <tr key={detail.id} className="hover:bg-gray-50">
+                                <tr
+                                    key={detail.id}
+                                    className="hover:bg-gray-50 divide-x divide-gray-100"
+                                    style={{
+                                        borderTop: isStart ? "3px double #9ca3af" : undefined,
+                                        borderBottom: isEnd ? "3px double #9ca3af" : undefined
+                                    }}
+                                >
                                     <td className="px-2 py-1 whitespace-nowrap font-medium text-gray-900 uppercase">
                                         {detail.maquina?.nombre}
                                         {detail.puesto && <span className="text-gray-600"> - {detail.puesto.descripcion}</span>}
@@ -399,18 +432,18 @@ export default function RecaudacionDetail() {
                                             onChange={(val) => handleCellChange(detail.id, 'retirada_efectivo', val)}
                                             onBlur={(val) => saveCell(detail.id, 'retirada_efectivo', val)}
                                             readOnly={false}
-                                            className={greenClass}
+                                            className={getTableColor(retiro)}
                                         />
                                     </td>
                                     <td className="px-2 py-1">
                                         <MoneyInput
-                                            id={`input - ${idx} -cajon`}
-                                            nextFocusId={hasNextRow ? `input - ${nextRowIdx} -cajon` : undefined}
+                                            id={`input-${idx}-cajon`}
+                                            nextFocusId={hasNextRow ? `input-${nextRowIdx}-cajon` : undefined}
                                             value={cajon}
                                             onChange={(val) => handleCellChange(detail.id, 'cajon', val)}
                                             onBlur={(val) => saveCell(detail.id, 'cajon', val)}
                                             readOnly={false}
-                                            className={greenClass}
+                                            className={getTableColor(cajon)}
                                         />
                                     </td>
                                     <td className="px-2 py-1">
@@ -427,25 +460,25 @@ export default function RecaudacionDetail() {
 
                                     <td className="px-2 py-1">
                                         <MoneyInput
-                                            id={`input - ${idx} -ajuste`}
-                                            nextFocusId={hasNextRow ? `input - ${nextRowIdx} -ajuste` : undefined}
+                                            id={`input-${idx}-ajuste`}
+                                            nextFocusId={hasNextRow ? `input-${nextRowIdx}-ajuste` : undefined}
                                             value={ajuste}
                                             onChange={(val) => handleCellChange(detail.id, 'tasa_ajuste', val)}
                                             onBlur={(val) => saveCell(detail.id, 'tasa_ajuste', val)}
                                             readOnly={false}
-                                            className={getPositiveClass(ajuste)}
+                                            className={getTableColor(ajuste)}
                                         />
                                     </td>
 
-                                    <td className={`px - 2 py - 1 text - right ${getPositiveClass(totalBruto)} `}>
+                                    <td className={`px-2 py-1 text-right ${getTableColor(totalBruto)}`}>
                                         {formatCurrency(totalBruto)}
                                     </td>
 
-                                    <td className={`px - 2 py - 1 text - right ${redClass} `}>
+                                    <td className={`px-2 py-1 text-right ${redClass}`}>
                                         {formatCurrency(tasaEst)}
                                     </td>
 
-                                    <td className={`px - 2 py - 1 text - right ${getPositiveClass(totalNeto)} `}>
+                                    <td className={`px-2 py-1 text-right ${getTableColor(totalNeto)}`}>
                                         {formatCurrency(totalNeto)}
                                     </td>
                                 </tr>
@@ -453,16 +486,16 @@ export default function RecaudacionDetail() {
                         })}
                     </tbody>
                     <tfoot className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                        <tr>
+                        <tr className="divide-x divide-gray-200">
                             <td className="px-3 py-3 text-gray-900 uppercase">TOTAL</td>
 
-                            {/* Retirada (Green) */}
-                            <td className="px-3 py-3 text-right text-emerald-600">
+                            {/* Retirada */}
+                            <td className={`px-3 py-3 text-right ${getTableColor(recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.retirada_efectivo) || 0), 0) || 0)}`}>
                                 {formatCurrency(recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.retirada_efectivo) || 0), 0))}
                             </td>
 
-                            {/* Cajon (Green) */}
-                            <td className="px-3 py-3 text-right text-emerald-600">
+                            {/* Cajon */}
+                            <td className={`px-3 py-3 text-right ${getTableColor(recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.cajon) || 0), 0) || 0)}`}>
                                 {formatCurrency(recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.cajon) || 0), 0))}
                             </td>
 
@@ -472,12 +505,12 @@ export default function RecaudacionDetail() {
                             </td>
 
                             {/* Ajuste (Conditional) */}
-                            <td className={`px - 3 py - 3 text - right ${(recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.tasa_ajuste) || 0), 0) || 0) > 0 ? 'text-emerald-600' : (recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.tasa_ajuste) || 0), 0) || 0) < 0 ? 'text-red-600' : 'text-gray-900'} `}>
+                            <td className={`px-3 py-3 text-right ${getTableColor(recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.tasa_ajuste) || 0), 0) || 0)}`}>
                                 {formatCurrency(recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.tasa_ajuste) || 0), 0))}
                             </td>
 
                             {/* Bruto (Conditional) */}
-                            <td className={`px - 3 py - 3 text - right ${(recaudacion.detalles?.reduce((acc, d) => acc + ((Number(d.retirada_efectivo) || 0) + (Number(d.cajon) || 0) - (Number(d.pago_manual) || 0) + (Number(d.tasa_ajuste) || 0)), 0) || 0) > 0 ? 'text-emerald-600' : 'text-gray-900'} `}>
+                            <td className={`px-3 py-3 text-right ${getTableColor(recaudacion.detalles?.reduce((acc, d) => acc + ((Number(d.retirada_efectivo) || 0) + (Number(d.cajon) || 0) - (Number(d.pago_manual) || 0) + (Number(d.tasa_ajuste) || 0)), 0) || 0)}`}>
                                 {formatCurrency(recaudacion.detalles?.reduce((acc, d) => acc + ((Number(d.retirada_efectivo) || 0) + (Number(d.cajon) || 0) - (Number(d.pago_manual) || 0) + (Number(d.tasa_ajuste) || 0)), 0))}
                             </td>
 
@@ -487,7 +520,7 @@ export default function RecaudacionDetail() {
                             </td>
 
                             {/* Neto (Conditional) */}
-                            <td className={`px - 3 py - 3 text - right ${(recaudacion.detalles?.reduce((acc, d) => acc + ((Number(d.retirada_efectivo) || 0) + (Number(d.cajon) || 0) - (Number(d.pago_manual) || 0) + (Number(d.tasa_ajuste) || 0) - (Number(d.tasa_calculada) || 0)), 0) || 0) > 0 ? 'text-emerald-600' : 'text-red-600'} `}>
+                            <td className={`px-3 py-3 text-right ${getTableColor(recaudacion.detalles?.reduce((acc, d) => acc + ((Number(d.retirada_efectivo) || 0) + (Number(d.cajon) || 0) - (Number(d.pago_manual) || 0) + (Number(d.tasa_ajuste) || 0) - (Number(d.tasa_calculada) || 0)), 0) || 0)}`}>
                                 {formatCurrency(recaudacion.detalles?.reduce((acc, d) => acc + ((Number(d.retirada_efectivo) || 0) + (Number(d.cajon) || 0) - (Number(d.pago_manual) || 0) + (Number(d.tasa_ajuste) || 0) - (Number(d.tasa_calculada) || 0)), 0))}
                             </td>
                         </tr>

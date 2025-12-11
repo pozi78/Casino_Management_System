@@ -555,6 +555,24 @@ async def export_recaudacion_excel(
      
     results = (await db.execute(stmt_data)).all()
     
+    # Sort: Multipuesto First, then Name, then Puesto
+    from collections import Counter
+    # Count occurrences by machine name
+    name_counts = Counter(r[1] for r in results) # index 1 is Maquina.nombre
+
+    # Sort key function
+    def sort_key(row):
+        m_name = row[1]
+        p_numero = row[3] # Puesto.numero_puesto
+        is_multi = name_counts[m_name] > 1
+        # Tuple comparison:
+        # 0. not is_multi (False < True, so reverse this logic or use not: multipuesto should come first (True/1))
+        # Let's say: 0 if Multi, 1 if Mono. 
+        type_rank = 0 if is_multi else 1
+        return (type_rank, m_name, p_numero or 0)
+        
+    results.sort(key=sort_key)
+    
     data = []
     for row in results:
         det, m_nombre, m_serie, p_numero, p_desc, g_id = row
@@ -568,6 +586,7 @@ async def export_recaudacion_excel(
             "PAGO MANUAL": det.pago_manual or 0,
             "AJUSTE": det.tasa_ajuste or 0,
             "TASA_EST": det.tasa_calculada or 0,
+            "raw_name": m_nombre # For grouping
         })
         
     # 4. Excel Generation
@@ -698,6 +717,21 @@ async def export_recaudacion_excel(
     ws['G2'] = "=E1-E2"
     ws['G2'].font = header_font
 
+    # D3: VERSION (Size 12)
+    ws['D3'] = "VERSION"
+    ws['D3'].font = header_font
+
+    # E3: Version Value (1.0)
+    c = ws['E3']
+    c.value = "1.0"
+    c.font = Font(bold=True)
+    c.alignment = Alignment(horizontal='center') # Center align like dates usually are? Or left? Let's keep default or consistent. Dates were center/right? E1/E2 didn't specify alignment, so default.
+    # Version should be static/read-only for machine process, so LOCKED (default is locked if sheet is protected).
+    # Since we aren't setting protection=False, it will be locked.
+    # And we want it Gray (default from base loop) or White? The plan said "Locked/Gray".
+    # Base loop sets A1:H{t_row} to Gray. So it will be Gray by default.
+    # No extra code needed for Gray+Locked.
+
     # --- Summary Section (Rows 3-10) ---
     # Specs from Plantilla02 Analysis
     # B3: Total Recaudado = SUM(B_data)+SUM(C_data) (Retirada + Cajon)
@@ -775,18 +809,32 @@ async def export_recaudacion_excel(
 
     # --- Data (Row 13+) ---
     # Tenuous Border Style (Hair or Thin Gray)
-    tenuous_border = Border(
-        left=Side(style='hair', color='888888'), 
-        right=Side(style='hair', color='888888'), 
-        top=Side(style='hair', color='888888'), 
-        bottom=Side(style='hair', color='888888')
-    )
+    tenuous_side = Side(style='hair', color='888888')
+    thick_side = Side(style='double', color='000000')
     
+    count = len(data)
     for r_idx, d in enumerate(data, start=start_row):
+        # Determine Block Boundaries
+        idx = r_idx - start_row
+        current_name = d["raw_name"]
+        prev_name = data[idx-1]["raw_name"] if idx > 0 else None
+        next_name = data[idx+1]["raw_name"] if idx < count - 1 else None
+        
+        is_top = (current_name != prev_name)
+        is_bottom = (current_name != next_name)
+        
+        # Helper to get border for a cell
+        def get_border(col_idx):
+            top = thick_side if is_top else tenuous_side
+            bottom = thick_side if is_bottom else tenuous_side
+            left = tenuous_side
+            right = tenuous_side
+            return Border(top=top, bottom=bottom, left=left, right=right)
+
         # A: Machine (Gray)
         c = ws.cell(row=r_idx, column=1, value=d["MAQUINA"])
         c.font = bold_font
-        c.border = tenuous_border
+        c.border = get_border(1)
         
         # B, C, D, E: Editable -> White
         for col_idx, key in [(2, "RETIRADA"), (3, "CAJON"), (4, "PAGO MANUAL"), (5, "AJUSTE")]:
@@ -794,7 +842,7 @@ async def export_recaudacion_excel(
             c.number_format = money_fmt
             c.protection = CellProtection(locked=False)
             c.fill = white_fill
-            c.border = tenuous_border
+            c.border = get_border(col_idx)
             
             # D (Pago Manual) -> Static Red Text
             if col_idx == 4:
@@ -803,19 +851,19 @@ async def export_recaudacion_excel(
         # F (Total Bruto): Formula matches Plantilla02 (=B+C-D+E)
         c = ws.cell(row=r_idx, column=6, value=f"=B{r_idx}+C{r_idx}-D{r_idx}+E{r_idx}")
         c.number_format = money_fmt
-        c.border = tenuous_border
+        c.border = get_border(6)
         
         # G (Tasa Est): Static Red Value. Locked -> Gray
         c = ws.cell(row=r_idx, column=7, value=d["TASA_EST"])
         c.number_format = money_fmt
         c.font = red_static_font
-        c.border = tenuous_border
+        c.border = get_border(7)
         # Gray fill default
         
         # H (Total Neto): Formula matches Plantilla02 (=F-G)
         c = ws.cell(row=r_idx, column=8, value=f"=F{r_idx}-G{r_idx}")
         c.number_format = money_fmt
-        c.border = tenuous_border
+        c.border = get_border(8)
 
     # --- Totals Row ---
     ws.cell(row=t_row, column=1, value="TOTAL").font = Font(bold=True, size=11)

@@ -329,8 +329,10 @@ async def get_top_machines(
     from app.models.recaudacion import RecaudacionMaquina
     from collections import defaultdict
     
-    # Always join Recaudacion for date/salon filtering
-    q = select(RecaudacionMaquina).join(Recaudacion).options(selectinload(RecaudacionMaquina.maquina))
+    q = select(RecaudacionMaquina).join(Recaudacion).options(
+        selectinload(RecaudacionMaquina.maquina),
+        selectinload(RecaudacionMaquina.recaudacion).selectinload(Recaudacion.salon)
+    )
     
     q = apply_common_filters(q, RecaudacionMaquina, salon_ids, years, months)
     
@@ -340,19 +342,40 @@ async def get_top_machines(
     result = await db.execute(q)
     detalles = result.scalars().all()
     
-    stats = defaultdict(float)
+    stats = defaultdict(lambda: {"bruto": 0.0, "tasa": 0.0, "neto": 0.0, "salon": "Unknown"})
     
     for d in detalles:
         # Calculate net for this machine entry
         bruto = (d.retirada_efectivo or 0) + (d.cajon or 0) - (d.pago_manual or 0) + (d.tasa_ajuste or 0)
-        neto = bruto - (d.tasa_calculada or 0)
+        tasa = (d.tasa_calculada or 0)
+        neto = bruto - tasa
         
         # User gets 50%
-        val = float(neto) / 2
+        # Accumulate each component separately
+        m_name = d.maquina.nombre if d.maquina else f"Maq {d.maquina_id}"
+        salon_name = d.recaudacion.salon.nombre if d.recaudacion and d.recaudacion.salon else "Unknown"
         
-        m_name = d.maquina.nombre if d.maquina else f"Maq {d.maquina_id}" 
-        stats[m_name] += val
+        # Use a unique key combining machine and salon to handle potential name collisions if any, 
+        # though usually machine names are unique or ID based. 
+        # But here we aggregate by NAME as per previous logic.
+        # Ideally we should aggregate by ID, but existing logic used name.
+        # We will append Salon to name to make it unique per salon.
+        
+        full_name = f"{m_name} ({salon_name})"
+        
+        stats[full_name]["bruto"] += float(bruto) / 2
+        stats[full_name]["tasa"] += float(tasa) / 2
+        stats[full_name]["neto"] += float(neto) / 2
 
-    # Return top 10
-    top_list = [{"name": k, "value": round(v, 2)} for k, v in sorted(stats.items(), key=lambda x: x[1], reverse=True)]
-    return top_list[:10]
+    # Return ALL (no limit) sorted by Neto
+    # Flatten structure for frontend
+    top_list = []
+    for k, v in sorted(stats.items(), key=lambda x: x[1]["neto"], reverse=True):
+        top_list.append({
+            "name": k,
+            "bruto": round(v["bruto"], 2),
+            "tasa": round(v["tasa"], 2),
+            "neto": round(v["neto"], 2)
+        })
+        
+    return top_list
