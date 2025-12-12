@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, Trash2, Upload, FileSpreadsheet, Paperclip, X, Download, Info, Loader2, Check, RefreshCw } from 'lucide-react';
+import { ArrowLeft, FileText, Trash2, Upload, FileSpreadsheet, Paperclip, X, Download, Info, Loader2, Check, RefreshCw, Lock, Unlock } from 'lucide-react';
 import { recaudacionApi, type Recaudacion, type RecaudacionMaquina, type RecaudacionFichero } from '../api/recaudaciones';
 import { MoneyInput } from '../components/MoneyInput';
 import { formatCurrency } from '../utils/currency';
@@ -9,6 +9,9 @@ import axios from '../api/axios'; // Import axios for direct call
 export default function RecaudacionDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+
+    // Auto-lock Ref
+    const bloqueadaRef = useRef<boolean>(false);
 
     const [recaudacion, setRecaudacion] = useState<Recaudacion | null>(null);
     const [loading, setLoading] = useState(true);
@@ -124,6 +127,24 @@ export default function RecaudacionDetail() {
             setLoading(false);
         }
     };
+
+    // Sync Ref
+    useEffect(() => {
+        if (recaudacion) {
+            bloqueadaRef.current = !!recaudacion.bloqueada;
+        }
+    }, [recaudacion?.bloqueada]);
+
+    // Auto-lock on exit
+    useEffect(() => {
+        return () => {
+            // Use the ref to check status at unmount time
+            if (id && !bloqueadaRef.current) {
+                // If leaving and not blocked -> lock it
+                recaudacionApi.update(Number(id), { bloqueada: true }).catch(console.error);
+            }
+        };
+    }, [id]);
 
     const handleCellChange = useCallback((detailId: number, field: keyof RecaudacionMaquina, value: number) => {
         setRecaudacion(prev => {
@@ -296,12 +317,7 @@ export default function RecaudacionDetail() {
         try {
             if (analyzingFileId) {
                 // Manually call import-excel with file_id
-                const formData = new FormData();
-                formData.append('mappings_str', JSON.stringify(userMappings));
-                formData.append('file_id', String(analyzingFileId));
-
-                // Using axios directly or I should update the API wrapper. 
-                await axios.post('/recaudaciones/' + recaudacion.id + '/import-excel', formData);
+                await recaudacionApi.remapExcel(recaudacion.id, analyzingFileId, userMappings);
 
             } else if (importFile) {
                 await recaudacionApi.importExcel(recaudacion.id, importFile, userMappings);
@@ -330,6 +346,18 @@ export default function RecaudacionDetail() {
         }
     };
 
+    const handleToggleLock = async () => {
+        if (!recaudacion) return;
+        try {
+            const newLockedState = !recaudacion.bloqueada;
+            await recaudacionApi.update(recaudacion.id, { bloqueada: newLockedState });
+            setRecaudacion({ ...recaudacion, bloqueada: newLockedState });
+        } catch (err) {
+            console.error(err);
+            alert("Error al actualizar el estado de bloqueo");
+        }
+    };
+
 
     // Color Helpers as per user request
     const getTableColor = (val: number) => val > 0 ? 'text-emerald-600 font-bold' : (val < 0 ? 'text-red-600 font-bold' : 'text-gray-900');
@@ -338,33 +366,44 @@ export default function RecaudacionDetail() {
     return (
         <div className="space-y-6">
             <div ref={headerRef} className="sticky top-0 z-50 bg-gray-100 py-4 border-b border-gray-200 -mx-8 -mt-8 px-8 shadow-sm">
-                <div className="flex items-center gap-4">
-                    <button onClick={() => navigate('/recaudaciones')} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                <div className="flex items-start gap-4">
+                    <button onClick={() => navigate('/recaudaciones')} className="mt-1 p-2 hover:bg-gray-100 rounded-full transition-colors">
                         <ArrowLeft size={20} />
                     </button>
                     <div className="flex-1">
-                        <h1 className="text-xl font-bold text-gray-900 uppercase">
-                            RECAUDACIÓN DEL {formatDate(recaudacion.fecha_inicio)} AL {formatDate(recaudacion.fecha_fin)}
-                            {recaudacion.etiqueta && <span className="ml-2 text-gray-500 font-normal normal-case">({recaudacion.etiqueta})</span>}
-                        </h1>
+                        <div className="flex items-center justify-between mb-2">
+                            <h1 className="text-xl font-bold text-gray-900 uppercase">
+                                RECAUDACIÓN DEL {formatDate(recaudacion.fecha_inicio)} AL {formatDate(recaudacion.fecha_fin)}
+                                {recaudacion.etiqueta && <span className="ml-2 text-gray-500 font-normal normal-case">({recaudacion.etiqueta})</span>}
+                            </h1>
+                            {savingId && <Loader2 className="w-4 h-4 text-gray-300 animate-spin" />}
+                        </div>
+
                         <div className="flex items-center justify-between mt-1">
                             <p className="text-gray-500 font-medium uppercase">
                                 {getDaysDifference(recaudacion.fecha_inicio, recaudacion.fecha_fin)} DÍAS
                             </p>
-                            <div className="flex gap-4">
-                                <div className="bg-white px-3 py-1 rounded-lg border border-gray-200 shadow-sm flex items-center gap-2">
+                            <div className="flex items-center gap-4">
+                                <div className="bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm flex items-center gap-2">
                                     <span className="text-xs font-semibold text-gray-500 uppercase">NETO {recaudacion.salon?.nombre || 'SALON'}:</span>
                                     <span className={"text-sm font-bold " + getColorClass(splitTotal)}>{formatCurrency(splitTotal)}</span>
                                 </div>
-                                <div className="bg-white px-3 py-1 rounded-lg border border-gray-200 shadow-sm flex items-center gap-2">
+                                <div className="bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm flex items-center gap-2">
                                     <span className="text-xs font-semibold text-gray-500 uppercase">NETO UORSA:</span>
                                     <span className={"text-sm font-bold " + getColorClass(splitTotal)}>{formatCurrency(splitTotal)}</span>
                                 </div>
+                                <button
+                                    onClick={handleToggleLock}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border shadow-sm transition-all text-sm font-bold whitespace-nowrap ${recaudacion.bloqueada
+                                        ? 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100'
+                                        : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                        }`}
+                                >
+                                    {recaudacion.bloqueada ? <Lock size={16} /> : <Unlock size={16} />}
+                                    {recaudacion.bloqueada ? 'BLOQUEADA' : 'DESBLOQUEADA'}
+                                </button>
                             </div>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {savingId && <span className="text-sm text-gray-500 animate-pulse">Guardando...</span>}
                     </div>
                 </div>
             </div>
@@ -431,8 +470,8 @@ export default function RecaudacionDetail() {
                                             value={retiro}
                                             onChange={(val) => handleCellChange(detail.id, 'retirada_efectivo', val)}
                                             onBlur={(val) => saveCell(detail.id, 'retirada_efectivo', val)}
-                                            readOnly={false}
-                                            className={getTableColor(retiro)}
+                                            readOnly={recaudacion.bloqueada}
+                                            className={`${getTableColor(retiro)} ${recaudacion.bloqueada ? 'cursor-not-allowed' : ''}`}
                                         />
                                     </td>
                                     <td className="px-2 py-1">
@@ -442,8 +481,8 @@ export default function RecaudacionDetail() {
                                             value={cajon}
                                             onChange={(val) => handleCellChange(detail.id, 'cajon', val)}
                                             onBlur={(val) => saveCell(detail.id, 'cajon', val)}
-                                            readOnly={false}
-                                            className={getTableColor(cajon)}
+                                            readOnly={recaudacion.bloqueada}
+                                            className={`${getTableColor(cajon)} ${recaudacion.bloqueada ? 'cursor-not-allowed' : ''}`}
                                         />
                                     </td>
                                     <td className="px-2 py-1">
@@ -453,8 +492,8 @@ export default function RecaudacionDetail() {
                                             value={manual}
                                             onChange={(val) => handleCellChange(detail.id, 'pago_manual', val)}
                                             onBlur={(val) => saveCell(detail.id, 'pago_manual', val)}
-                                            readOnly={false}
-                                            className={manual > 0 ? redClass : 'text-gray-900'}
+                                            readOnly={recaudacion.bloqueada}
+                                            className={`${manual > 0 ? redClass : 'text-gray-900'} ${recaudacion.bloqueada ? 'cursor-not-allowed' : ''}`}
                                         />
                                     </td>
 
@@ -465,8 +504,8 @@ export default function RecaudacionDetail() {
                                             value={ajuste}
                                             onChange={(val) => handleCellChange(detail.id, 'tasa_ajuste', val)}
                                             onBlur={(val) => saveCell(detail.id, 'tasa_ajuste', val)}
-                                            readOnly={false}
-                                            className={getTableColor(ajuste)}
+                                            readOnly={recaudacion.bloqueada}
+                                            className={`${getTableColor(ajuste)} ${recaudacion.bloqueada ? 'cursor-not-allowed' : ''}`}
                                         />
                                     </td>
 
@@ -548,14 +587,14 @@ export default function RecaudacionDetail() {
                                     </a>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <button onClick={() => handleAnalyzeFile(f.id)} className="text-blue-500 hover:text-blue-700 p-1" title="Remapear">
-                                        <RefreshCw size={16} />
+                                    <button onClick={() => handleAnalyzeFile(f.id)} className="text-blue-500 hover:text-blue-700 p-1" title="Remapear" disabled={recaudacion.bloqueada}>
+                                        <RefreshCw size={16} className={recaudacion.bloqueada ? 'opacity-50' : ''} />
                                     </button>
                                     <a href={recaudacionApi.getFileUrl(f.id)} download className="text-gray-400 hover:text-gray-700 p-1">
                                         <Download size={16} />
                                     </a>
-                                    <button onClick={() => handleFileDelete(f.id)} className="text-red-400 hover:text-red-700 p-1">
-                                        <Trash2 size={16} />
+                                    <button onClick={() => handleFileDelete(f.id)} className="text-red-400 hover:text-red-700 p-1" disabled={recaudacion.bloqueada}>
+                                        <Trash2 size={16} className={recaudacion.bloqueada ? 'opacity-50' : ''} />
                                     </button>
                                 </div>
                             </div>
@@ -572,7 +611,7 @@ export default function RecaudacionDetail() {
                         <label className="flex items-center justify-center gap-2 w-full p-4 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 text-gray-600 transition-colors group">
                             <Upload size={20} className="group-hover:scale-110 transition-transform" />
                             <span className="text-sm font-medium">{isUploading ? 'Subiendo...' : 'Adjuntar Documento'}</span>
-                            <input type="file" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
+                            <input type="file" className="hidden" onChange={handleFileUpload} disabled={isUploading || recaudacion.bloqueada} />
                         </label>
 
                         <label className="flex items-center justify-center gap-2 w-full p-4 bg-emerald-50 border border-emerald-200 rounded-lg cursor-pointer hover:bg-emerald-100 text-emerald-700 transition-colors group shadow-sm">
@@ -581,7 +620,7 @@ export default function RecaudacionDetail() {
                                 <span className="text-xs font-semibold uppercase">Importar Excel</span>
                                 <span className="text-[10px] opacity-75">de Recaudación</span>
                             </div>
-                            <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelFileSelect} disabled={isUploading} />
+                            <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelFileSelect} disabled={isUploading || recaudacion.bloqueada} />
                         </label>
 
                         <button
@@ -640,8 +679,8 @@ export default function RecaudacionDetail() {
                                         <MoneyInput
                                             value={totalTasas}
                                             onChange={(val) => handleGlobalUpdate('total_tasas', val)}
-                                            readOnly={false}
-                                            className="font-bold text-red-600"
+                                            readOnly={recaudacion.bloqueada}
+                                            className={`font-bold text-red-600 ${recaudacion.bloqueada ? 'cursor-not-allowed' : ''}`}
                                         />
                                     </div>
                                 </div>
@@ -661,8 +700,8 @@ export default function RecaudacionDetail() {
                                         <MoneyInput
                                             value={depositos}
                                             onChange={(val) => handleGlobalUpdate('depositos', val)}
-                                            readOnly={false}
-                                            className={`font - bold ${getColorClass(depositos)} `}
+                                            readOnly={recaudacion.bloqueada}
+                                            className={`font - bold ${getColorClass(depositos)} ${recaudacion.bloqueada ? 'cursor-not-allowed' : ''}`}
                                         />
                                     </div>
                                 </div>
@@ -674,8 +713,8 @@ export default function RecaudacionDetail() {
                                         <MoneyInput
                                             value={otrosConceptos}
                                             onChange={(val) => handleGlobalUpdate('otros_conceptos', val)}
-                                            readOnly={false}
-                                            className={`font - bold ${getColorClass(otrosConceptos)} `}
+                                            readOnly={recaudacion.bloqueada}
+                                            className={`font - bold ${getColorClass(otrosConceptos)} ${recaudacion.bloqueada ? 'cursor-not-allowed' : ''}`}
                                         />
                                     </div>
                                 </div>

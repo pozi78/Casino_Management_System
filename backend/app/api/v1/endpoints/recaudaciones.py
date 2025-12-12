@@ -513,6 +513,10 @@ async def import_recaudacion_excel(
                 
     if found_totals:
         db.add(rec)
+        
+    await db.commit()
+    
+    return {"status": "ok", "updated": updated_count, "mappings_updated": True if mappings_str else False}
 
 
 @router.get("/{id}/export-excel")

@@ -64,6 +64,7 @@ export interface Recaudacion {
     ficheros?: RecaudacionFichero[];
     total_neto?: number;
     total_global?: number;
+    bloqueada?: boolean;
 }
 
 export interface RecaudacionCreate {
@@ -74,6 +75,7 @@ export interface RecaudacionCreate {
     etiqueta?: string;
     origen?: string;
     notas?: string;
+    bloqueada?: boolean;
 }
 
 export interface RecaudacionUpdate {
@@ -85,6 +87,7 @@ export interface RecaudacionUpdate {
     total_tasas?: number;
     depositos?: number;
     otros_conceptos?: number;
+    bloqueada?: boolean;
 }
 
 export const recaudacionApi = {
@@ -207,6 +210,17 @@ export const recaudacionApi = {
             });
             formData.append('mappings_str', JSON.stringify(cleanMap));
         }
+        const response = await axiosInstance.post(`/recaudaciones/${id}/import-excel`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    },
+
+    remapExcel: async (id: number, file_id: number, mappings: Record<string, number | null>) => {
+        const formData = new FormData();
+        formData.append('file_id', String(file_id));
+        formData.append('mappings_str', JSON.stringify(mappings));
+
         const response = await axiosInstance.post(`/recaudaciones/${id}/import-excel`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });

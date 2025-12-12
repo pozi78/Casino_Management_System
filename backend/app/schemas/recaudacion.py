@@ -54,6 +54,7 @@ class RecaudacionBase(BaseModel):
     total_tasas: Optional[Decimal] = Decimal(0)
     depositos: Optional[Decimal] = Decimal(0)
     otros_conceptos: Optional[Decimal] = Decimal(0)
+    bloqueada: Optional[bool] = False
 
 class RecaudacionCreate(RecaudacionBase):
     pass
@@ -67,6 +68,7 @@ class RecaudacionUpdate(BaseModel):
     total_tasas: Optional[Decimal] = None
     depositos: Optional[Decimal] = None
     otros_conceptos: Optional[Decimal] = None
+    bloqueada: Optional[bool] = None
 
 class RecaudacionSummary(RecaudacionBase):
     id: int

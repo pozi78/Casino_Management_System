@@ -420,7 +420,7 @@ export default function Recaudaciones() {
                             {filteredRecaudaciones.map((rec) => (
                                 <tr key={rec.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/recaudaciones/${rec.id}`)}>
 
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    <td className="px-6 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
                                         <div className="flex items-center gap-3">
                                             <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs text-white shadow-sm font-bold ${getSalonColor(getSalonName(rec.salon_id))}`}>
                                                 {getSalonInitials(getSalonName(rec.salon_id))}
@@ -428,7 +428,7 @@ export default function Recaudaciones() {
                                             {getSalonName(rec.salon_id)}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-500">
                                         <div className="flex flex-col">
                                             <span className="text-lg font-bold text-gray-900">
                                                 {formatDate(rec.fecha_fin)}
@@ -438,13 +438,13 @@ export default function Recaudaciones() {
                                             </span>
                                         </div>
                                     </td>
-                                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${getCurrencyClasses((Number(rec.total_global) || 0) / 2)}`}>
+                                    <td className={`px-6 py-2 whitespace-nowrap text-sm font-bold ${getCurrencyClasses((Number(rec.total_global) || 0) / 2)}`}>
                                         {formatCurrency((Number(rec.total_global) || 0) / 2)}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-500">
                                         {rec.etiqueta || '-'}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <td className="px-6 py-2 whitespace-nowrap text-right text-sm font-medium">
                                         <div className="flex items-center gap-3">
                                             <button
                                                 onClick={(e) => {

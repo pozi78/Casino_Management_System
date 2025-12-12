@@ -40,15 +40,10 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({ value, onChange, onBlur,
         setIsEditing(false);
 
         // Parse the internal string to a number
-        // Replace comma with dot to make it valid for Number()
-        let normalized = internalValue.replace(',', '.');
-
-        // Safety check for multiple dots
-        if ((normalized.match(/\./g) || []).length > 1) {
-            // Fallback: keep only first dot, remove others
-            const parts = normalized.split('.');
-            normalized = parts[0] + '.' + parts.slice(1).join('');
-        }
+        // 1. Remove thousands separators (dots)
+        let normalized = internalValue.replace(/\./g, '');
+        // 2. Replace decimal comma with dot
+        normalized = normalized.replace(',', '.');
 
         let numericVal = parseFloat(normalized);
 
@@ -65,17 +60,22 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({ value, onChange, onBlur,
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newVal = e.target.value;
 
-        // Regex allows numbers, one comma or dot, minus at start
-        if (/^-?[0-9]*([.,][0-9]*)?$/.test(newVal)) {
+        // Regex allows numbers, dots (thousands), comma (decimal), minus
+        // We allow multiple dots for thousands separators
+        if (/^-?[0-9]*(\.?[0-9]+)*([,][0-9]*)?$/.test(newVal) || newVal === '-' || newVal === '') {
             setInternalValue(newVal);
 
             if (newVal === '' || newVal === '-') {
-                // Don't emit 0 for just a minus sign, but do for empty
                 if (newVal === '') onChange(0);
                 return;
             }
 
-            const normalized = newVal.replace(',', '.');
+            // Parse for onChange (Data Model Update)
+            // 1. Strip dots
+            const clean = newVal.replace(/\./g, '');
+            // 2. Comma to dot
+            const normalized = clean.replace(',', '.');
+
             const num = parseFloat(normalized);
             if (!isNaN(num)) {
                 onChange(num);
@@ -131,7 +131,7 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({ value, onChange, onBlur,
                 ref={inputRef}
                 type="text"
                 inputMode="decimal" // Mobile numeric keyboard
-                className={`w-full text-right border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-50 focus:bg-white transition-colors p-1 pr-6 ${readOnly ? 'bg-gray-100 text-gray-500' : ''} ${className || ''}`}
+                className={`w-full text-right border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-colors p-1 pr-6 ${readOnly ? 'bg-white' : 'bg-gray-200 focus:bg-white'} ${className || ''}`}
                 value={isEditing ? internalValue : (() => {
                     const fixed = Number(value).toFixed(2);
                     const [intPart, decPart] = fixed.split('.');

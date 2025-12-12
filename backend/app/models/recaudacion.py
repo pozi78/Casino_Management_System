@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, ForeignKey, Numeric, UniqueConstraint, DateTime
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, Numeric, UniqueConstraint, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from app.db.base_class import Base
 
@@ -13,6 +13,7 @@ class Recaudacion(Base):
     origen = Column(String) # manual, importacion
     referencia_fichero = Column(String)
     notas = Column(String)
+    bloqueada = Column(Boolean, default=False)
 
     # Global Editable Fields
     total_tasas = Column(Numeric(12, 2), default=0)
