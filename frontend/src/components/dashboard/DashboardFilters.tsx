@@ -18,9 +18,10 @@ interface Props {
     filters: DashboardFiltersState;
     onChange: (newFilters: DashboardFiltersState) => void;
     salons: { id: number, nombre: string }[];
+    className?: string; // Add optional className prop
 }
 
-export default function DashboardFilters({ metadata, filters, onChange, salons }: Props) {
+export default function DashboardFilters({ metadata, filters, onChange, salons, className = '' }: Props) {
     const [openDropdown, setOpenDropdown] = React.useState<'years' | 'months' | 'machines' | null>(null);
     const containerRef = React.useRef<HTMLDivElement>(null);
 
@@ -59,8 +60,13 @@ export default function DashboardFilters({ metadata, filters, onChange, salons }
         return salon ? salon.nombre : 'Desconocido';
     };
 
+    const validMachineCount = React.useMemo(() => {
+        const availableIds = new Set(metadata.machines.map(m => m.id));
+        return filters.machine_ids.filter(id => availableIds.has(id)).length;
+    }, [filters.machine_ids, metadata.machines]);
+
     return (
-        <div ref={containerRef} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6">
+        <div ref={containerRef} className={`bg-white rounded-2xl shadow-sm border border-gray-100 p-4 ${className}`}>
             <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
                 <div className="flex items-center gap-2 text-gray-500 font-medium">
                     <Filter className="w-5 h-5" />
@@ -158,7 +164,7 @@ export default function DashboardFilters({ metadata, filters, onChange, salons }
                         >
                             <Monitor className="w-4 h-4 text-gray-500" />
                             Máquinas
-                            {filters.machine_ids.length > 0 && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full text-xs">{filters.machine_ids.length}</span>}
+                            {validMachineCount > 0 && <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full text-xs">{validMachineCount}</span>}
                         </button>
                         {openDropdown === 'machines' && (
                             <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-100 p-2 z-20 max-h-80 overflow-y-auto">

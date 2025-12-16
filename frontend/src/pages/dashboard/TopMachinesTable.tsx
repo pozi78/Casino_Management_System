@@ -15,7 +15,7 @@ export default function TopMachinesTable({ machines = [] }: Props) {
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-full">
             <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-gray-900">Rendimiento por Máquina (50%)</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Rendimiento por Máquina</h3>
                 <Trophy className="text-amber-500 w-5 h-5" />
             </div>
 

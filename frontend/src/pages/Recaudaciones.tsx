@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FileText, Trash2, X, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, FileText, Trash2, X, AlertTriangle, ChevronDown, ChevronRight, Upload } from 'lucide-react';
 import { recaudacionApi, type Recaudacion, type RecaudacionCreate } from '../api/recaudaciones';
 import { salonesApi, type Salon } from '../api/salones';
 import { formatCurrency, getCurrencyClasses } from '../utils/currency';
@@ -47,12 +47,20 @@ const getDaysDiff = (start: string, end: string) => {
 };
 
 // COMPONENTS
+// HELPERS
+const getNetoSalon = (rec: Recaudacion) => {
+    const total = Number(rec.total_global) || 0;
+    const percent = rec.porcentaje_salon ?? 50;
+    return total * (percent / 100);
+};
+
 const calculateTotal = (groupData: any): number => {
     if (Array.isArray(groupData)) {
-        return groupData.reduce((sum: any, rec: any) => sum + ((Number(rec.total_global) || 0) / 2), 0);
+        return groupData.reduce((sum: any, rec: any) => sum + getNetoSalon(rec), 0);
     }
     return Object.values(groupData).reduce((sum: number, val: any) => sum + calculateTotal(val), 0);
 };
+
 
 const GroupItem = ({ groupKey, value, depthKeys, type, navigate, salones, activeGroupingKeys }: any) => {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -126,8 +134,8 @@ const GroupedRenderer = ({ data, depthKeys, navigate, salones, activeGroupingKey
                                 <span className="text-gray-400">{getDaysDiff(rec.fecha_inicio, rec.fecha_fin)} días</span>
                             </div>
                         </div>
-                        <div className={`font-bold text-sm ${getCurrencyClasses((Number(rec.total_global) || 0) / 2)}`}>
-                            {formatCurrency((Number(rec.total_global) || 0) / 2)}
+                        <div className={`font-bold text-sm ${getCurrencyClasses(getNetoSalon(rec))}`}>
+                            {formatCurrency(getNetoSalon(rec))} <span className="text-gray-400 font-normal text-xs ml-1">({rec.porcentaje_salon ?? 50}%)</span>
                         </div>
                     </div>
                 ))}
@@ -252,6 +260,9 @@ export default function Recaudaciones() {
     const [startTime, setStartTime] = useState('06:00');
     const [endTime, setEndTime] = useState('06:00');
 
+    // Import File State for New Recaudacion
+    const [importFile, setImportFile] = useState<File | null>(null);
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -305,6 +316,48 @@ export default function Recaudaciones() {
         }
     };
 
+    // Auto-fill from Excel
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setImportFile(file);
+
+        try {
+            const metadata = await recaudacionApi.parseMetadata(file);
+            console.log("Metadata parsed:", metadata);
+
+            if (metadata.is_normalized) {
+                // Determine updates
+                const updates: any = {};
+                if (metadata.salon_id) {
+                    updates.salon_id = metadata.salon_id;
+                    updates.origen = 'importacion';
+                }
+
+                // Format dates to YYYY-MM-DD
+                const formatDateStr = (d: string) => d.split('T')[0];
+
+                if (metadata.fecha_inicio) {
+                    updates.fecha_inicio = formatDateStr(metadata.fecha_inicio);
+                }
+
+                if (metadata.fecha_fin) {
+                    updates.fecha_fin = formatDateStr(metadata.fecha_fin);
+                    // Standard logic: closing date = end date
+                    updates.fecha_cierre = formatDateStr(metadata.fecha_fin);
+                }
+
+                if (Object.keys(updates).length > 0) {
+                    setFormData(prev => ({ ...prev, ...updates }));
+                    alert("Datos autocompletados desde el archivo Excel.");
+                }
+            }
+        } catch (err) {
+            console.error("Error parsing metadata:", err);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -318,9 +371,44 @@ export default function Recaudaciones() {
             };
 
             const newRec = await recaudacionApi.create(payload);
-            setRecaudaciones([newRec, ...recaudaciones]);
-            setShowModal(false);
-            navigate(`/recaudaciones/${newRec.id}`);
+
+            // Handle Import
+            if (importFile) {
+                try {
+                    // Upload the file
+                    const uploadedFile = await recaudacionApi.uploadFile(newRec.id, importFile);
+
+                    // Analyze it
+                    // Note: modify backend analyzeFile to potentially return logic for auto-import? 
+                    // Or we just check names.
+                    // For now, let's trigger analysis.
+                    const analysis = await recaudacionApi.analyzeFile(newRec.id, uploadedFile.id);
+
+                    if (analysis.is_normalized) {
+                        // Auto-import using remapExcel (which supports file_id and empty mappings)
+                        await recaudacionApi.remapExcel(newRec.id, uploadedFile.id, {});
+                        // Done
+                        navigate(`/recaudaciones/${newRec.id}`);
+                    } else {
+                        // Go to detail page but open the mapping modal
+                        navigate(`/recaudaciones/${newRec.id}`, {
+                            state: {
+                                openImportModal: true,
+                                analysisResults: analysis,
+                                analyzingFileId: uploadedFile.id
+                            }
+                        });
+                    }
+                } catch (err) {
+                    console.error("Error creating/importing:", err);
+                    alert("Recaudación creada, pero hubo error al importar el archivo.");
+                    navigate(`/recaudaciones/${newRec.id}`);
+                }
+            } else {
+                setRecaudaciones([newRec, ...recaudaciones]);
+                setShowModal(false);
+                navigate(`/recaudaciones/${newRec.id}`);
+            }
         } catch (error: any) {
             console.error("Error creating recaudacion:", error);
             const msg = error.response?.data?.detail || "Error al crear la recaudación. Verifique que no haya solapamiento de fechas.";
@@ -438,8 +526,8 @@ export default function Recaudaciones() {
                                             </span>
                                         </div>
                                     </td>
-                                    <td className={`px-6 py-2 whitespace-nowrap text-sm font-bold ${getCurrencyClasses((Number(rec.total_global) || 0) / 2)}`}>
-                                        {formatCurrency((Number(rec.total_global) || 0) / 2)}
+                                    <td className={`px-6 py-2 whitespace-nowrap text-sm font-bold ${getCurrencyClasses(getNetoSalon(rec))}`}>
+                                        {formatCurrency(getNetoSalon(rec))} <span className="text-gray-400 font-normal text-xs ml-1">({rec.porcentaje_salon ?? 50}%)</span>
                                     </td>
                                     <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-500">
                                         {rec.etiqueta || '-'}
@@ -557,14 +645,28 @@ export default function Recaudaciones() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Etiqueta (Opcional)</label>
-                                <input
-                                    type="text"
-                                    placeholder="Ej: Semana 42"
-                                    className="w-full border rounded-lg p-2"
-                                    value={formData.etiqueta || ''}
-                                    onChange={(e) => setFormData({ ...formData, etiqueta: e.target.value })}
-                                />
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Importar Excel (Opcional)</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="file"
+                                        accept=".xlsx, .xls"
+                                        className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                                        onChange={handleFileSelect}
+                                    />
+                                    {importFile && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setImportFile(null)}
+                                            className="text-red-500 hover:text-red-700"
+                                            title="Quitar archivo"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    )}
+                                </div>
+                                <p className="text-xs text-gray-400 mt-1">
+                                    Detecta automáticamente si es plantilla normalizada (v1.0).
+                                </p>
                             </div>
 
                             <div className="flex justify-end gap-3 mt-6">
@@ -584,53 +686,56 @@ export default function Recaudaciones() {
                             </div>
                         </form>
                     </div>
-                </div>
-            )}
+                </div >
+            )
+            }
 
             {/* Modal Borrar Recaudacion */}
-            {deleteId && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl p-6 w-full max-w-sm">
-                        <div className="flex flex-col items-center text-center mb-6">
-                            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4 text-red-600">
-                                <AlertTriangle size={24} />
+            {
+                deleteId && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-xl p-6 w-full max-w-sm">
+                            <div className="flex flex-col items-center text-center mb-6">
+                                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4 text-red-600">
+                                    <AlertTriangle size={24} />
+                                </div>
+                                <h2 className="text-xl font-bold text-gray-900">¿Borrar Recaudación?</h2>
+                                <p className="text-sm text-gray-500 mt-2">
+                                    Esta acción no se puede deshacer. Para confirmar, escribe <strong>BORRAR</strong> abajo.
+                                </p>
                             </div>
-                            <h2 className="text-xl font-bold text-gray-900">¿Borrar Recaudación?</h2>
-                            <p className="text-sm text-gray-500 mt-2">
-                                Esta acción no se puede deshacer. Para confirmar, escribe <strong>BORRAR</strong> abajo.
-                            </p>
-                        </div>
 
-                        <input
-                            type="text"
-                            className="w-full border border-gray-300 rounded-lg p-2 text-center uppercase mb-4 focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                            placeholder="Escribe BORRAR"
-                            value={deleteConfirmation}
-                            onChange={(e) => setDeleteConfirmation(e.target.value.toUpperCase())}
-                            autoFocus
-                        />
+                            <input
+                                type="text"
+                                className="w-full border border-gray-300 rounded-lg p-2 text-center uppercase mb-4 focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                                placeholder="Escribe BORRAR"
+                                value={deleteConfirmation}
+                                onChange={(e) => setDeleteConfirmation(e.target.value.toUpperCase())}
+                                autoFocus
+                            />
 
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => { setDeleteId(null); setDeleteConfirmation(''); }}
-                                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleDelete}
-                                disabled={deleteConfirmation !== 'BORRAR'}
-                                className={`flex-1 px-4 py-2 text-white rounded-lg font-medium transition-colors ${deleteConfirmation === 'BORRAR'
-                                    ? 'bg-red-600 hover:bg-red-700'
-                                    : 'bg-red-300 cursor-not-allowed'
-                                    }`}
-                            >
-                                Borrar
-                            </button>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => { setDeleteId(null); setDeleteConfirmation(''); }}
+                                    className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleDelete}
+                                    disabled={deleteConfirmation !== 'BORRAR'}
+                                    className={`flex-1 px-4 py-2 text-white rounded-lg font-medium transition-colors ${deleteConfirmation === 'BORRAR'
+                                        ? 'bg-red-600 hover:bg-red-700'
+                                        : 'bg-red-300 cursor-not-allowed'
+                                        }`}
+                                >
+                                    Borrar
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 }

@@ -16,9 +16,10 @@ class Recaudacion(Base):
     bloqueada = Column(Boolean, default=False)
 
     # Global Editable Fields
-    total_tasas = Column(Numeric(12, 2), default=0)
+    total_tasas = Column(Numeric(12, 4), default=0)
     depositos = Column(Numeric(12, 2), default=0)
     otros_conceptos = Column(Numeric(12, 2), default=0)
+    porcentaje_salon = Column(Numeric(5, 2), default=50.00)
 
     salon = relationship("Salon", back_populates="recaudaciones")
     detalles = relationship("RecaudacionMaquina", back_populates="recaudacion", cascade="all, delete-orphan")
@@ -30,13 +31,13 @@ class Recaudacion(Base):
         if not self.detalles:
             return 0
         return sum(
-            (d.retirada_efectivo or 0) + (d.cajon or 0) - (d.pago_manual or 0) + (d.tasa_ajuste or 0)
+            (d.retirada_efectivo or 0) + (d.cajon or 0) - (d.pago_manual or 0) + (d.ajuste or 0)
             for d in self.detalles
         )
 
     @property
     def total_neto(self):
-        return self.total_bruto - sum((d.tasa_calculada or 0) for d in (self.detalles or []))
+        return self.total_bruto - sum((d.tasa_estimada or 0) for d in (self.detalles or []))
 
     @property
     def total_global(self):
@@ -59,9 +60,10 @@ class RecaudacionMaquina(Base):
     cajon = Column(Numeric(12, 2), default=0)
     pago_manual = Column(Numeric(12, 2), default=0)
 
-    tasa_calculada = Column(Numeric(12, 2), default=0)
-    tasa_ajuste = Column(Numeric(12, 2), default=0)
-    tasa_final = Column(Numeric(12, 2), default=0)
+    tasa_estimada = Column(Numeric(12, 4), default=0)
+    ajuste = Column(Numeric(12, 4), default=0)
+    tasa_diferencia = Column(Numeric(12, 4), default=0)
+    tasa_final = Column(Numeric(12, 4), default=0)
 
     detalle_tasa = Column(String)
 

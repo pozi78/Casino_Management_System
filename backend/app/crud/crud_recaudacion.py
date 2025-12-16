@@ -118,13 +118,14 @@ class CRUDRecaudacion:
                 recaudacion_id=db_obj.id,
                 maquina_id=puesto.maquina_id,
                 puesto_id=puesto.id,
-                tasa_calculada=tasa_base,
+                tasa_estimada=tasa_base,
                 tasa_final=tasa_base, 
                 detalle_tasa=detalle_tasa,
                 retirada_efectivo=0,
                 cajon=0,
                 pago_manual=0,
-                tasa_ajuste=0
+                ajuste=0,
+                tasa_diferencia=0
             )
             db.add(detail)
         
@@ -188,8 +189,9 @@ class CRUDRecaudacionMaquina:
                 setattr(db_obj, field, update_data[field])
 
         # Recalculate tasa_final if adjustment changes
-        if 'tasa_ajuste' in update_data:
-             db_obj.tasa_final = db_obj.tasa_calculada + db_obj.tasa_ajuste
+        # Recalculate tasa_final if adjustment changes
+        if 'ajuste' in update_data:
+             db_obj.tasa_final = (db_obj.tasa_estimada or 0) + (db_obj.ajuste or 0) + (db_obj.tasa_diferencia or 0)
 
         db.add(db_obj)
         await db.commit()
@@ -202,6 +204,14 @@ class CRUDRecaudacionMaquina:
             .where(RecaudacionMaquina.id == db_obj.id)
         )
         return result.scalars().first()
+
+    async def remove(self, db: AsyncSession, *, id: int) -> Optional[RecaudacionMaquina]:
+        result = await db.execute(select(RecaudacionMaquina).where(RecaudacionMaquina.id == id))
+        obj = result.scalars().first()
+        if obj:
+            await db.delete(obj)
+            await db.commit()
+        return obj
 
 recaudacion = CRUDRecaudacion()
 recaudacion_maquina = CRUDRecaudacionMaquina()

@@ -7,8 +7,9 @@ export interface RecaudacionMaquina {
     retirada_efectivo: number;
     cajon: number;
     pago_manual: number;
-    tasa_calculada: number;
-    tasa_ajuste: number;
+    tasa_estimada: number;
+    ajuste: number;
+    tasa_diferencia: number;
     tasa_final: number;
     detalle_tasa: string;
     maquina?: {
@@ -31,7 +32,7 @@ export interface RecaudacionMaquinaUpdate {
     retirada_efectivo?: number;
     cajon?: number;
     pago_manual?: number;
-    tasa_ajuste?: number;
+    ajuste?: number;
     detalle_tasa?: string;
 }
 
@@ -60,6 +61,7 @@ export interface Recaudacion {
     total_tasas?: number;
     depositos?: number;
     otros_conceptos?: number;
+    porcentaje_salon?: number;
     detalles?: RecaudacionMaquina[];
     ficheros?: RecaudacionFichero[];
     total_neto?: number;
@@ -75,6 +77,7 @@ export interface RecaudacionCreate {
     etiqueta?: string;
     origen?: string;
     notas?: string;
+    porcentaje_salon?: number;
     bloqueada?: boolean;
 }
 
@@ -87,6 +90,7 @@ export interface RecaudacionUpdate {
     total_tasas?: number;
     depositos?: number;
     otros_conceptos?: number;
+    porcentaje_salon?: number;
     bloqueada?: boolean;
 }
 
@@ -94,7 +98,7 @@ export const recaudacionApi = {
     // Collection Operations
     getAll: async (salon_id?: number) => {
         const response = await axiosInstance.get<Recaudacion[]>('/recaudaciones/', {
-            params: { salon_id }
+            params: { salon_id, limit: 1000 }
         });
         return response.data;
     },
@@ -134,6 +138,11 @@ export const recaudacionApi = {
         return response.data;
     },
 
+    deleteRecaudacionMaquina: async (detailId: number) => {
+        const response = await axiosInstance.delete<RecaudacionMaquina>(`/recaudaciones/details/${detailId}`);
+        return response.data;
+    },
+
     // File Operations
     uploadFile: async (id: number, file: File) => {
         const formData = new FormData();
@@ -162,6 +171,7 @@ export const recaudacionApi = {
         const response = await axiosInstance.post<{
             mappings: { excel_name: string; mapped_puesto_id: number | null; is_ignored: boolean }[];
             puestos: { id: number; name: string }[];
+            is_normalized?: boolean;
         }>(`/recaudaciones/${id}/analyze-excel`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
@@ -172,6 +182,7 @@ export const recaudacionApi = {
         const response = await axiosInstance.post<{
             mappings: { excel_name: string; mapped_puesto_id: number | null; is_ignored: boolean }[];
             puestos: { id: number; name: string }[];
+            is_normalized?: boolean;
         }>(`/recaudaciones/${id}/files/${file_id}/analyze`);
         return response.data;
     },
@@ -218,10 +229,28 @@ export const recaudacionApi = {
 
     remapExcel: async (id: number, file_id: number, mappings: Record<string, number | null>) => {
         const formData = new FormData();
-        formData.append('file_id', String(file_id));
-        formData.append('mappings_str', JSON.stringify(mappings));
+        const cleanMap: Record<string, number> = {};
+        Object.entries(mappings).forEach(([k, v]) => {
+            if (v) cleanMap[k] = v;
+        });
+        formData.append('mappings_str', JSON.stringify(cleanMap));
+        formData.append('file_id', file_id.toString());
 
-        const response = await axiosInstance.post(`/recaudaciones/${id}/import-excel`, formData, {
+        await axiosInstance.post(`/recaudaciones/${id}/import-excel`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
+
+    parseMetadata: async (file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await axiosInstance.post<{
+            is_normalized: boolean;
+            salon_id?: number | null;
+            fecha_inicio?: string | null;
+            fecha_fin?: string | null;
+            error?: string;
+        }>('/recaudaciones/parse-metadata', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
         return response.data;

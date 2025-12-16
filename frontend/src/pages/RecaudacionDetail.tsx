@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, FileText, Trash2, Upload, FileSpreadsheet, Paperclip, X, Download, Info, Loader2, Check, RefreshCw, Lock, Unlock } from 'lucide-react';
 import { recaudacionApi, type Recaudacion, type RecaudacionMaquina, type RecaudacionFichero } from '../api/recaudaciones';
 import { MoneyInput } from '../components/MoneyInput';
@@ -9,6 +9,7 @@ import axios from '../api/axios'; // Import axios for direct call
 export default function RecaudacionDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
 
     // Auto-lock Ref
     const bloqueadaRef = useRef<boolean>(false);
@@ -27,6 +28,7 @@ export default function RecaudacionDetail() {
     const [analysisResults, setAnalysisResults] = useState<{
         mappings: { excel_name: string; mapped_puesto_id: number | null, is_ignored: boolean }[];
         puestos: { id: number; name: string }[];
+        is_normalized?: boolean;
     } | null>(null);
     const [userMappings, setUserMappings] = useState<Record<string, number | null>>({});
 
@@ -42,6 +44,25 @@ export default function RecaudacionDetail() {
             setUserMappings(initialMap);
         }
     }, [analysisResults]);
+
+    // Handle incoming state from creation flow
+    useEffect(() => {
+        if (location.state && location.state.openImportModal) {
+            if (location.state.analysisResults) {
+                setAnalysisResults(location.state.analysisResults);
+            }
+            if (location.state.analyzingFileId) {
+                setAnalyzingFileId(location.state.analyzingFileId);
+            }
+            setImportModalOpen(true);
+            // Clear state to prevent reopening on generic refresh?
+            // navigate(location.pathname, { replace: true, state: {} }); 
+            // Better to leave it for now or clear it.
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state]);
+
+    // Computed Lists
 
     // Computed Lists
     const pendingMappings = analysisResults?.mappings.filter(m => {
@@ -155,8 +176,8 @@ export default function RecaudacionDetail() {
                     if (d.id === detailId) {
                         const updated = { ...d, [field]: value };
                         // Auto-calc rate logic matching backend for display
-                        if (field === 'tasa_ajuste') {
-                            updated.tasa_final = Number(updated.tasa_calculada) + Number(value);
+                        if (field === 'ajuste') {
+                            updated.tasa_final = Number(updated.tasa_estimada) + Number(value) + Number(updated.tasa_diferencia || 0);
                         }
                         return updated;
                     }
@@ -177,21 +198,64 @@ export default function RecaudacionDetail() {
         }
     };
 
-    const handleGlobalUpdate = async (field: keyof Recaudacion, value: string | number) => {
+    const formatForInput = (dateStr: string | undefined | null) => {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return '';
+
+        // Adjust for timezone offset to get "Local ISO"
+        const tzOffset = date.getTimezoneOffset() * 60000; // in ms
+        const localISOTime = new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+        return localISOTime;
+    };
+
+    const handleGlobalChange = (field: keyof Recaudacion, value: string | number) => {
+        if (!recaudacion) return;
+        // Local Optimistic Update ONLY (No API)
+        let finalValue: string | number = value;
+        if (field === 'porcentaje_salon') {
+            finalValue = Number(value);
+        }
+        setRecaudacion(prev => prev ? { ...prev, [field]: finalValue } : null);
+    };
+
+    const handleGlobalBlur = async (field: keyof Recaudacion, value: string | number) => {
         if (!recaudacion) return;
 
-        // Optimistic update
-        const numValue = Number(value);
-        setRecaudacion(prev => prev ? { ...prev, [field]: numValue } : null);
+        let finalValue: string | number = value;
+        if (field === 'porcentaje_salon') {
+            finalValue = Number(value);
+        }
 
         try {
             await recaudacionApi.update(recaudacion.id, {
-                [field]: numValue
+                [field]: finalValue
             });
+
+            // Re-fetch only if fields that affect calculations changed
+            if (field === 'fecha_inicio' || field === 'fecha_fin') {
+                fetchData(recaudacion.id);
+            }
         } catch (err) {
             console.error('Error updating global field:', err);
-            // Revert? For now, we trust. 
-            // In a production app, we should revert on error or show toast.
+            // Optionally revert here
+        }
+    };
+
+    // Legacy wrapper for backwards compatibility with non-date fields if needed, 
+    // or just direct replacement. 
+    // For Percentage Salon, we can keep using Blur for save, Change for local.
+    const handleGlobalUpdate = handleGlobalBlur; // fallback for immediate saves if used elsewhere
+
+    const handleDeleteDetail = async (detailId: number) => {
+        if (!window.confirm("¿Seguro que quieres borrar esta máquina de la recaudación?")) return;
+        try {
+            await recaudacionApi.deleteRecaudacionMaquina(detailId);
+            // Re-fetch to get recalculated values (tasa_diferencia redistributed)
+            if (id) fetchData(Number(id));
+        } catch (err: any) {
+            console.error("Error deleting detail", err);
+            alert("Error al borrar la máquina: " + (err.response?.data?.detail || err.message));
         }
     };
 
@@ -223,9 +287,9 @@ export default function RecaudacionDetail() {
     // Calculate Totals for Summary and Header
     const totalRecaudacion = recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.retirada_efectivo) || 0) + (Number(d.cajon) || 0), 0) || 0;
     const pagosManuales = recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.pago_manual) || 0), 0) || 0;
-    const totalAjustes = recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.tasa_ajuste) || 0), 0) || 0;
+    const totalAjustes = recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.ajuste) || 0), 0) || 0;
     const totalTasas = Number(recaudacion.total_tasas) || 0;
-    const tasasEstimadas = recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.tasa_calculada) || 0), 0) || 0;
+    const tasasEstimadas = recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.tasa_estimada) || 0), 0) || 0;
     const tasaDiff = totalTasas - tasasEstimadas;
 
     const subtotal = totalRecaudacion - pagosManuales + totalAjustes - totalTasas;
@@ -233,7 +297,10 @@ export default function RecaudacionDetail() {
     const otrosConceptos = Number(recaudacion.otros_conceptos) || 0;
 
     const totalFinal = subtotal + depositos + otrosConceptos;
-    const splitTotal = totalFinal / 2;
+
+    const porcentajeSalon = Number(recaudacion.porcentaje_salon) || 50;
+    const netoSalon = totalFinal * (porcentajeSalon / 100);
+    const netoUorsa = totalFinal - netoSalon;
 
     const getColorClass = (val: number) => val > 0 ? 'text-emerald-600' : (val < 0 ? 'text-red-600' : 'text-gray-900');
     const getFadedColorClass = (val: number) => val > 0 ? 'text-emerald-400' : (val < 0 ? 'text-red-400' : 'text-gray-400');
@@ -276,6 +343,22 @@ export default function RecaudacionDetail() {
             setAnalyzingFileId(fileId);
             setImportFile(null);
             const results = await recaudacionApi.analyzeFile(recaudacion.id, fileId);
+
+            if (results.is_normalized) {
+                // Auto-import if normalized
+                try {
+                    await recaudacionApi.remapExcel(recaudacion.id, fileId, {});
+                    setAnalyzingFileId(null);
+                    setImportFile(null);
+                    setLoading(false);
+                    fetchData(recaudacion.id);
+                    return;
+                } catch (err) {
+                    console.error("Error auto-importing normalized file:", err);
+                    alert("Error al importar el archivo normalizado.");
+                }
+            }
+
             setAnalysisResults(results);
             setImportModalOpen(true);
         } catch (err) {
@@ -298,6 +381,25 @@ export default function RecaudacionDetail() {
 
         try {
             const results = await recaudacionApi.analyzeExcel(recaudacion.id, file);
+
+            if (results.is_normalized) {
+                // Auto-import if normalized
+                try {
+                    await recaudacionApi.importExcel(recaudacion.id, file);
+                    setImportFile(null);
+                    setAnalyzingFileId(null);
+                    setIsUploading(false);
+                    e.target.value = '';
+                    fetchData(recaudacion.id);
+                    return;
+                } catch (err) {
+                    console.error("Error auto-importing normalized file:", err);
+                    alert("Error al importar el archivo normalizado.");
+                    // If fail, maybe just show mapping modal?
+                    // No, better to stop.
+                }
+            }
+
             setAnalysisResults(results);
             setImportModalOpen(true);
         } catch (err) {
@@ -361,6 +463,9 @@ export default function RecaudacionDetail() {
 
     // Color Helpers as per user request
     const getTableColor = (val: number) => val > 0 ? 'text-emerald-600 font-bold' : (val < 0 ? 'text-red-600 font-bold' : 'text-gray-900');
+    // Inverse logic for Tasa Diferencia: Positive is BAD (Red), Negative is GOOD (Green) - theoretically? Or just distinguishing deviation?
+    // User Request: TASA DIF. sale roja si es positiva y verde si es negativa.
+    const getTasaDiffColor = (val: number) => val > 0 ? 'text-red-600 font-bold' : (val < 0 ? 'text-emerald-600 font-bold' : 'text-gray-900');
     const redClass = "text-red-600 font-bold";
 
     return (
@@ -373,8 +478,35 @@ export default function RecaudacionDetail() {
                     <div className="flex-1">
                         <div className="flex items-center justify-between mb-2">
                             <h1 className="text-xl font-bold text-gray-900 uppercase">
-                                RECAUDACIÓN DEL {formatDate(recaudacion.fecha_inicio)} AL {formatDate(recaudacion.fecha_fin)}
+                                RECAUDACIÓN
+                                {recaudacion.bloqueada ? (
+                                    <> DEL {formatDate(recaudacion.fecha_inicio)} AL {formatDate(recaudacion.fecha_fin)}</>
+                                ) : (
+                                    <div className="inline-flex flex-col md:flex-row items-baseline gap-2 ml-2">
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-sm font-normal text-gray-500 normal-case">Del</span>
+                                            <input
+                                                type="datetime-local"
+                                                value={formatForInput(recaudacion.fecha_inicio)}
+                                                onChange={(e) => handleGlobalChange('fecha_inicio', e.target.value)}
+                                                onBlur={(e) => handleGlobalBlur('fecha_inicio', e.target.value)}
+                                                className="text-base font-bold bg-transparent border-b border-gray-300 focus:border-indigo-500 focus:ring-0 px-1 py-0.5"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-sm font-normal text-gray-500 normal-case">al</span>
+                                            <input
+                                                type="datetime-local"
+                                                value={formatForInput(recaudacion.fecha_fin)}
+                                                onChange={(e) => handleGlobalChange('fecha_fin', e.target.value)}
+                                                onBlur={(e) => handleGlobalBlur('fecha_fin', e.target.value)}
+                                                className="text-base font-bold bg-transparent border-b border-gray-300 focus:border-indigo-500 focus:ring-0 px-1 py-0.5"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                                 {recaudacion.etiqueta && <span className="ml-2 text-gray-500 font-normal normal-case">({recaudacion.etiqueta})</span>}
+
                             </h1>
                             {savingId && <Loader2 className="w-4 h-4 text-gray-300 animate-spin" />}
                         </div>
@@ -386,11 +518,24 @@ export default function RecaudacionDetail() {
                             <div className="flex items-center gap-4">
                                 <div className="bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm flex items-center gap-2">
                                     <span className="text-xs font-semibold text-gray-500 uppercase">NETO {recaudacion.salon?.nombre || 'SALON'}:</span>
-                                    <span className={"text-sm font-bold " + getColorClass(splitTotal)}>{formatCurrency(splitTotal)}</span>
+                                    <div className="flex items-center gap-1">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            value={recaudacion.porcentaje_salon ?? 50}
+                                            onChange={(e) => handleGlobalChange('porcentaje_salon', Number(e.target.value))}
+                                            onBlur={(e) => handleGlobalBlur('porcentaje_salon', Number(e.target.value))}
+                                            className="w-12 text-center text-xs border border-gray-300 rounded px-1 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                            disabled={recaudacion.bloqueada}
+                                        />
+                                        <span className="text-xs text-gray-500">%</span>
+                                    </div>
+                                    <span className={"text-sm font-bold " + getColorClass(netoSalon)}>{formatCurrency(netoSalon)}</span>
                                 </div>
                                 <div className="bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm flex items-center gap-2">
-                                    <span className="text-xs font-semibold text-gray-500 uppercase">NETO UORSA:</span>
-                                    <span className={"text-sm font-bold " + getColorClass(splitTotal)}>{formatCurrency(splitTotal)}</span>
+                                    <span className="text-xs font-semibold text-gray-500 uppercase">NETO UORSA {100 - (recaudacion.porcentaje_salon ?? 50)}%:</span>
+                                    <span className={"text-sm font-bold " + getColorClass(netoUorsa)}>{formatCurrency(netoUorsa)}</span>
                                 </div>
                                 <button
                                     onClick={handleToggleLock}
@@ -418,7 +563,8 @@ export default function RecaudacionDetail() {
                             <th style={{ top: headerHeight }} className="sticky z-40 bg-gray-50 px-2 py-2 text-center font-medium text-gray-500 uppercase tracking-wider shadow-sm transition-all">PAGO MANUAL</th>
                             <th style={{ top: headerHeight }} className="sticky z-40 bg-gray-50 px-2 py-2 text-center font-medium text-gray-500 uppercase tracking-wider shadow-sm transition-all">AJUSTE</th>
                             <th style={{ top: headerHeight }} className="sticky z-40 bg-gray-50 px-2 py-2 text-center font-medium text-gray-500 uppercase tracking-wider font-bold shadow-sm transition-all">TOTAL BRUTO</th>
-                            <th style={{ top: headerHeight }} className="sticky z-40 bg-gray-50 px-2 py-2 text-center font-medium text-gray-500 uppercase tracking-wider shadow-sm transition-all">TASA ESTIMADA</th>
+                            <th style={{ top: headerHeight }} className="sticky z-40 bg-gray-50 px-2 py-2 text-center font-medium text-gray-500 uppercase tracking-wider shadow-sm transition-all">TASA EST.</th>
+                            <th style={{ top: headerHeight }} className="sticky z-40 bg-gray-50 px-2 py-2 text-center font-medium text-gray-500 uppercase tracking-wider shadow-sm transition-all">TASA DIF.</th>
                             <th style={{ top: headerHeight }} className="sticky z-40 bg-gray-50 px-2 py-2 text-center font-medium text-gray-500 uppercase tracking-wider font-bold shadow-sm transition-all">TOTAL NETO</th>
                         </tr>
                     </thead>
@@ -427,11 +573,12 @@ export default function RecaudacionDetail() {
                             const retiro = Number(detail.retirada_efectivo) || 0;
                             const cajon = Number(detail.cajon) || 0;
                             const manual = Number(detail.pago_manual) || 0;
-                            const ajuste = Number(detail.tasa_ajuste) || 0;
-                            const tasaEst = Number(detail.tasa_calculada) || 0;
+                            const ajuste = Number(detail.ajuste) || 0;
+                            const tasaEst = Number(detail.tasa_estimada) || 0;
+                            const tasaDif = Number(detail.tasa_diferencia) || 0;
 
                             const totalBruto = retiro + cajon - manual + ajuste;
-                            const totalNeto = totalBruto - tasaEst;
+                            const totalNeto = totalBruto - tasaEst - tasaDif;
 
                             const nextRowIdx = idx + 1;
                             const hasNextRow = recaudacion.detalles && nextRowIdx < recaudacion.detalles.length;
@@ -454,12 +601,21 @@ export default function RecaudacionDetail() {
                                         borderBottom: isEnd ? "3px double #9ca3af" : undefined
                                     }}
                                 >
-                                    <td className="px-2 py-1 whitespace-nowrap font-medium text-gray-900 uppercase">
-                                        {detail.maquina?.nombre}
-                                        {detail.puesto && <span className="text-gray-600"> - {detail.puesto.descripcion}</span>}
-                                        <div className="text-xs text-gray-400">
-                                            {detail.maquina?.tipo_maquina?.nombre}
-                                            {detail.maquina?.numero_serie && ` - ${detail.maquina.numero_serie}`}
+                                    <td className="px-2 py-1 sticky left-0 z-20 bg-white border-r border-gray-200">
+                                        <div className="flex items-center">
+                                            {!recaudacion.bloqueada && (
+                                                <button
+                                                    onClick={() => handleDeleteDetail(detail.id)}
+                                                    className="p-1 text-gray-400 hover:text-red-600 transition-colors mr-1"
+                                                    title="Borrar máquina"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
+                                            <span className="font-bold whitespace-nowrap text-gray-900">
+                                                {detail.maquina?.nombre || '-'}
+                                            </span>
+                                            {detail.puesto && <span className="text-gray-600 ml-1"> - {detail.puesto.descripcion}</span>}
                                         </div>
                                     </td>
 
@@ -502,8 +658,8 @@ export default function RecaudacionDetail() {
                                             id={`input-${idx}-ajuste`}
                                             nextFocusId={hasNextRow ? `input-${nextRowIdx}-ajuste` : undefined}
                                             value={ajuste}
-                                            onChange={(val) => handleCellChange(detail.id, 'tasa_ajuste', val)}
-                                            onBlur={(val) => saveCell(detail.id, 'tasa_ajuste', val)}
+                                            onChange={(val) => handleCellChange(detail.id, 'ajuste', val)}
+                                            onBlur={(val) => saveCell(detail.id, 'ajuste', val)}
                                             readOnly={recaudacion.bloqueada}
                                             className={`${getTableColor(ajuste)} ${recaudacion.bloqueada ? 'cursor-not-allowed' : ''}`}
                                         />
@@ -515,6 +671,10 @@ export default function RecaudacionDetail() {
 
                                     <td className={`px-2 py-1 text-right ${redClass}`}>
                                         {formatCurrency(tasaEst)}
+                                    </td>
+
+                                    <td className={`px-2 py-1 text-right ${getTasaDiffColor(tasaDif)}`}>
+                                        {formatCurrency(tasaDif)}
                                     </td>
 
                                     <td className={`px-2 py-1 text-right ${getTableColor(totalNeto)}`}>
@@ -544,23 +704,28 @@ export default function RecaudacionDetail() {
                             </td>
 
                             {/* Ajuste (Conditional) */}
-                            <td className={`px-3 py-3 text-right ${getTableColor(recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.tasa_ajuste) || 0), 0) || 0)}`}>
-                                {formatCurrency(recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.tasa_ajuste) || 0), 0))}
+                            <td className={`px-3 py-3 text-right ${getTableColor(recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.ajuste) || 0), 0) || 0)}`}>
+                                {formatCurrency(recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.ajuste) || 0), 0))}
                             </td>
 
                             {/* Bruto (Conditional) */}
-                            <td className={`px-3 py-3 text-right ${getTableColor(recaudacion.detalles?.reduce((acc, d) => acc + ((Number(d.retirada_efectivo) || 0) + (Number(d.cajon) || 0) - (Number(d.pago_manual) || 0) + (Number(d.tasa_ajuste) || 0)), 0) || 0)}`}>
-                                {formatCurrency(recaudacion.detalles?.reduce((acc, d) => acc + ((Number(d.retirada_efectivo) || 0) + (Number(d.cajon) || 0) - (Number(d.pago_manual) || 0) + (Number(d.tasa_ajuste) || 0)), 0))}
+                            <td className={`px-3 py-3 text-right ${getTableColor(recaudacion.detalles?.reduce((acc, d) => acc + ((Number(d.retirada_efectivo) || 0) + (Number(d.cajon) || 0) - (Number(d.pago_manual) || 0) + (Number(d.ajuste) || 0)), 0) || 0)}`}>
+                                {formatCurrency(recaudacion.detalles?.reduce((acc, d) => acc + ((Number(d.retirada_efectivo) || 0) + (Number(d.cajon) || 0) - (Number(d.pago_manual) || 0) + (Number(d.ajuste) || 0)), 0))}
                             </td>
 
                             {/* Tasa (Red) */}
                             <td className="px-3 py-3 text-right text-red-600">
-                                {formatCurrency(recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.tasa_calculada) || 0), 0))}
+                                {formatCurrency(recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.tasa_estimada) || 0), 0))}
+                            </td>
+
+                            {/* Tasa Dif (Conditional) */}
+                            <td className={`px-3 py-3 text-right ${getTasaDiffColor(recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.tasa_diferencia) || 0), 0) || 0)}`}>
+                                {formatCurrency(recaudacion.detalles?.reduce((acc, d) => acc + (Number(d.tasa_diferencia) || 0), 0))}
                             </td>
 
                             {/* Neto (Conditional) */}
-                            <td className={`px-3 py-3 text-right ${getTableColor(recaudacion.detalles?.reduce((acc, d) => acc + ((Number(d.retirada_efectivo) || 0) + (Number(d.cajon) || 0) - (Number(d.pago_manual) || 0) + (Number(d.tasa_ajuste) || 0) - (Number(d.tasa_calculada) || 0)), 0) || 0)}`}>
-                                {formatCurrency(recaudacion.detalles?.reduce((acc, d) => acc + ((Number(d.retirada_efectivo) || 0) + (Number(d.cajon) || 0) - (Number(d.pago_manual) || 0) + (Number(d.tasa_ajuste) || 0) - (Number(d.tasa_calculada) || 0)), 0))}
+                            <td className={`px-3 py-3 text-right ${getTableColor(recaudacion.detalles?.reduce((acc, d) => acc + ((Number(d.retirada_efectivo) || 0) + (Number(d.cajon) || 0) - (Number(d.pago_manual) || 0) + (Number(d.ajuste) || 0) - (Number(d.tasa_estimada) || 0) - (Number(d.tasa_diferencia) || 0)), 0) || 0)}`}>
+                                {formatCurrency(recaudacion.detalles?.reduce((acc, d) => acc + ((Number(d.retirada_efectivo) || 0) + (Number(d.cajon) || 0) - (Number(d.pago_manual) || 0) + (Number(d.ajuste) || 0) - (Number(d.tasa_estimada) || 0) - (Number(d.tasa_diferencia) || 0)), 0))}
                             </td>
                         </tr>
                     </tfoot>
@@ -678,7 +843,8 @@ export default function RecaudacionDetail() {
                                     <div className="w-32">
                                         <MoneyInput
                                             value={totalTasas}
-                                            onChange={(val) => handleGlobalUpdate('total_tasas', val)}
+                                            onChange={(val) => handleGlobalChange('total_tasas', val)}
+                                            onBlur={(val) => handleGlobalBlur('total_tasas', val)}
                                             readOnly={recaudacion.bloqueada}
                                             className={`font-bold text-red-600 ${recaudacion.bloqueada ? 'cursor-not-allowed' : ''}`}
                                         />
@@ -699,9 +865,10 @@ export default function RecaudacionDetail() {
                                     <div className="w-32">
                                         <MoneyInput
                                             value={depositos}
-                                            onChange={(val) => handleGlobalUpdate('depositos', val)}
+                                            onChange={(val) => handleGlobalChange('depositos', val)}
+                                            onBlur={(val) => handleGlobalBlur('depositos', val)}
                                             readOnly={recaudacion.bloqueada}
-                                            className={`font - bold ${getColorClass(depositos)} ${recaudacion.bloqueada ? 'cursor-not-allowed' : ''}`}
+                                            className={`font-bold ${getColorClass(depositos)} ${recaudacion.bloqueada ? 'cursor-not-allowed' : ''}`}
                                         />
                                     </div>
                                 </div>
@@ -712,9 +879,10 @@ export default function RecaudacionDetail() {
                                     <div className="w-32">
                                         <MoneyInput
                                             value={otrosConceptos}
-                                            onChange={(val) => handleGlobalUpdate('otros_conceptos', val)}
+                                            onChange={(val) => handleGlobalChange('otros_conceptos', val)}
+                                            onBlur={(val) => handleGlobalBlur('otros_conceptos', val)}
                                             readOnly={recaudacion.bloqueada}
-                                            className={`font - bold ${getColorClass(otrosConceptos)} ${recaudacion.bloqueada ? 'cursor-not-allowed' : ''}`}
+                                            className={`font-bold ${getColorClass(otrosConceptos)} ${recaudacion.bloqueada ? 'cursor-not-allowed' : ''}`}
                                         />
                                     </div>
                                 </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -52,19 +52,41 @@ export default function Login() {
         }
     };
 
+    const [bgImage, setBgImage] = useState('/assets/images/bg_roulette_1.png');
+
+    useEffect(() => {
+        const images = [
+            '/assets/images/bg_roulette_1.png',
+            '/assets/images/bg_roulette_2.png'
+        ];
+        const randomImage = images[Math.floor(Math.random() * images.length)];
+        setBgImage(randomImage);
+    }, []);
+
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[#064E3B] bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
-            {/* Overlay for background darkening */}
-            <div className="absolute inset-0 bg-black/40" />
+        <div className="min-h-screen flex items-center justify-center bg-[#064E3B] relative overflow-hidden">
+            {/* Roulette Layout Motif (Angled Perspective) - Random Selection */}
+            <div
+                className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-20 mix-blend-overlay transition-opacity duration-1000"
+                style={{ backgroundImage: `url('${bgImage}')` }}
+            />
+
+            {/* Felt Texture Overlay (Local Asset) */}
+            <div className="absolute inset-0 bg-[url('/assets/images/felt.png')] opacity-40 mix-blend-multiply" />
+
+            {/* Gradient Overlay for Tone */}
+            <div className="absolute inset-0 bg-radial-gradient(circle at center, transparent 0%, rgba(6, 78, 59, 0.5) 100%) pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-b from-[#064E3B]/40 via-transparent to-[#064E3B]/60 pointer-events-none" />
 
             <div className="relative z-10 w-full max-w-md p-8 mx-4">
                 {/* Logo Section */}
                 <div className="text-center mb-10">
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#B45309] mb-4 shadow-lg shadow-orange-500/20">
-                        <span className="text-2xl text-white font-bold">A&M</span>
+                        <span className="text-2xl text-white font-bold">CMS</span>
                     </div>
-                    <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-600 tracking-tight">
-                        Atlantic & Mistery
+                    <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-600 tracking-tight leading-tight flex flex-col gap-1">
+                        <span>Casino</span>
+                        <span>Management System</span>
                     </h1>
                     <p className="text-emerald-200/80 font-medium uppercase tracking-[0.2em] text-xs mt-2">
                         Premium Casino Management
@@ -138,7 +160,7 @@ export default function Login() {
                 </div>
 
                 <p className="text-center text-emerald-200/40 text-xs mt-8">
-                    &copy; 2025 Atlantic & Mistery. All rights reserved.
+                    &copy; 2025 MASHOLDINGS. All rights reserved.
                 </p>
             </div>
         </div>

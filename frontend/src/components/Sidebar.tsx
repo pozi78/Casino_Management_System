@@ -25,7 +25,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
-    const { logout } = useAuth();
+    const { logout, user } = useAuth();
     const { availableSalons, selectedSalonIds, toggleSalon, selectAll, deselectAll } = useSalonFilter();
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -54,21 +54,26 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
 
     return (
         <aside
-            className={`fixed left-0 top-0 z-40 h-screen transition-all duration-300 ease-in-out border-r border-[#064E3B]/20 bg-[#064E3B] text-white flex flex-col ${isOpen ? 'w-64' : 'w-20'
+            className={`fixed left-0 top-0 z-40 h-screen transition-all duration-300 ease-in-out border-r border-[#064E3B]/20 bg-[#064E3B] text-white flex flex-col relative ${isOpen ? 'w-64' : 'w-20'
                 }`}
         >
+            {/* Background Layers */}
+            <div className="absolute inset-0 bg-[url('/assets/images/bg_roulette_1.png')] bg-cover bg-center bg-no-repeat opacity-15 mix-blend-overlay pointer-events-none rounded-r-xl overflow-hidden" />
+            <div className="absolute inset-0 bg-[url('/assets/images/felt.png')] opacity-30 mix-blend-multiply pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-b from-[#064E3B]/80 via-transparent to-[#064E3B]/90 pointer-events-none" />
+
             {/* Header / Logo */}
-            <div className={`flex items-center h-16 px-4 border-b border-emerald-800/50 ${isOpen ? 'justify-between' : 'justify-center'}`}>
+            <div className={`relative z-10 flex items-center h-16 px-4 border-b border-emerald-800/50 ${isOpen ? 'justify-between' : 'justify-center'}`}>
                 {isOpen ? (
                     <div className="flex items-center space-x-2">
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#B45309] flex items-center justify-center font-bold text-xs shadow-md">
-                            A&M
+                            CMS
                         </div>
-                        <span className="font-bold text-lg tracking-tight text-emerald-50">Casino Msg</span>
+                        <span className="font-bold text-lg tracking-tight text-emerald-50">CasinoMS</span>
                     </div>
                 ) : (
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#B45309] flex items-center justify-center font-bold text-xs shadow-md">
-                        A&M
+                        CMS
                     </div>
                 )}
 
@@ -81,7 +86,7 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto scrollbar-hide">
+            <nav className="relative z-10 flex-1 py-6 px-3 space-y-1 overflow-y-auto scrollbar-hide">
                 {navItems.map((item) => (
                     <NavLink
                         key={item.path}
@@ -184,10 +189,32 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
             </nav>
 
             {/* User Section / Logout */}
-            <div className="p-4 border-t border-emerald-800/50">
+            <div className="relative z-10 p-4 border-t border-emerald-800/50 flex flex-col gap-3">
+                {user && (
+                    <div className={`flex items-center ${!isOpen && 'justify-center'}`}>
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-600 to-emerald-800 border border-emerald-500/50 flex items-center justify-center font-bold text-white shadow-sm shrink-0" title={user.nombre || user.username}>
+                            {(() => {
+                                const name = user.nombre || user.username;
+                                const parts = name.trim().split(/\s+/);
+                                if (parts.length >= 2) {
+                                    return (parts[0][0] + parts[1][0]).toUpperCase();
+                                }
+                                return name.substring(0, 1).toUpperCase();
+                            })()}
+                        </div>
+                        {isOpen && (
+                            <div className="ml-3 overflow-hidden">
+                                <p className="text-sm font-medium text-white truncate">
+                                    {user.nombre || user.username}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                )}
                 <button
                     onClick={logout}
-                    className={`flex items-center w-full px-3 py-3 text-red-300 rounded-xl hover:bg-red-500/10 hover:text-red-200 transition-colors ${!isOpen && 'justify-center'}`}
+                    className={`flex items-center w-full px-3 py-2 text-red-300 rounded-xl hover:bg-red-500/10 hover:text-red-200 transition-colors ${!isOpen ? 'justify-center' : ''}`}
+                    title="Cerrar Sesión"
                 >
                     <LogOut size={20} className={isOpen ? 'mr-3' : ''} />
                     {isOpen && <span>Cerrar Sesión</span>}
@@ -198,7 +225,7 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
             {!isOpen && (
                 <button
                     onClick={toggleSidebar}
-                    className="absolute -right-3 top-20 bg-[#F59E0B] text-white rounded-full p-1 shadow-lg hover:bg-[#D97706] transition-colors"
+                    className="absolute z-50 -right-3 top-5 bg-[#F59E0B] text-white rounded-full p-1 shadow-lg hover:bg-[#D97706] transition-colors"
                 >
                     <ChevronRight size={14} />
                 </button>

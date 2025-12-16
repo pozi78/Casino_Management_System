@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = "YOUR_SECRET_KEY_CHANGE_ME"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 # 1 hour
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 # 60 minutes
     
     UPLOAD_DIR: str = "/opt/CasinosSM/documents"
     

@@ -15,9 +15,10 @@ class RecaudacionMaquinaBase(BaseModel):
     retirada_efectivo: Decimal = Decimal(0)
     cajon: Decimal = Decimal(0)
     pago_manual: Decimal = Decimal(0)
-    tasa_ajuste: Decimal = Decimal(0)
+    ajuste: Decimal = Decimal(0)
     detalle_tasa: Optional[str] = None
-    tasa_calculada: Optional[Decimal] = Decimal(0)
+    tasa_estimada: Optional[Decimal] = Decimal(0)
+    tasa_diferencia: Optional[Decimal] = Decimal(0)
     tasa_final: Optional[Decimal] = Decimal(0)
 
 class RecaudacionMaquinaCreate(RecaudacionMaquinaBase):
@@ -28,7 +29,7 @@ class RecaudacionMaquinaUpdate(BaseModel):
     retirada_efectivo: Optional[Decimal] = None
     cajon: Optional[Decimal] = None
     pago_manual: Optional[Decimal] = None
-    tasa_ajuste: Optional[Decimal] = None
+    ajuste: Optional[Decimal] = None
     detalle_tasa: Optional[str] = None
 
 class RecaudacionMaquina(RecaudacionMaquinaBase):
@@ -54,6 +55,7 @@ class RecaudacionBase(BaseModel):
     total_tasas: Optional[Decimal] = Decimal(0)
     depositos: Optional[Decimal] = Decimal(0)
     otros_conceptos: Optional[Decimal] = Decimal(0)
+    porcentaje_salon: Optional[Decimal] = Decimal(50.00)
     bloqueada: Optional[bool] = False
 
 class RecaudacionCreate(RecaudacionBase):
@@ -68,6 +70,7 @@ class RecaudacionUpdate(BaseModel):
     total_tasas: Optional[Decimal] = None
     depositos: Optional[Decimal] = None
     otros_conceptos: Optional[Decimal] = None
+    porcentaje_salon: Optional[Decimal] = None
     bloqueada: Optional[bool] = None
 
 class RecaudacionSummary(RecaudacionBase):
@@ -107,4 +110,4 @@ class RecaudacionMaquinaBulkUpdate(BaseModel):
     retirada_efectivo: Optional[Decimal]
     cajon: Optional[Decimal]
     pago_manual: Optional[Decimal]
-    tasa_ajuste: Optional[Decimal]
+    ajuste: Optional[Decimal]

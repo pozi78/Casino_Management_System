@@ -19,6 +19,7 @@ router = APIRouter()
 async def get_filters_metadata(
     db: AsyncSession = Depends(get_db),
     years: Optional[List[int]] = Query(None),
+    salon_ids: Optional[List[int]] = Query(None),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ) -> Any:
     # Get Years
@@ -35,17 +36,50 @@ async def get_filters_metadata(
     # 1. Base: Active machines
     q_machines = select(Maquina.id, Maquina.nombre, Maquina.salon_id).where(Maquina.activo == True)
     
+    if salon_ids:
+        q_machines = q_machines.where(Maquina.salon_id.in_(salon_ids))
+    
     # 2. If years selected, add machines that had revenue in those years
     if years:
         from app.models.recaudacion import RecaudacionMaquina
-        subq_historical = (
+        subq_historical_q = (
             select(RecaudacionMaquina.maquina_id)
             .join(Recaudacion)
             .where(func.extract('year', Recaudacion.fecha_fin).in_(years))
         )
-        # Combine: Active OR ID in historical
+        
+        if salon_ids:
+             subq_historical_q = subq_historical_q.where(Recaudacion.salon_id.in_(salon_ids))
+             
+        subq_historical = subq_historical_q
+             
+        # Combine: Active (filtered) OR ID in historical (filtered)
+        # Note: If salon_ids is set, we only want machines that ARE in those salons (active or historical revenue in those salons)
+        # However, a machine might have moved salons.
+        # Requirement: "No deben aparecer las máquinas de los salones que no estan seleccionados"
+        # If we filter simply by current salon_id, we miss historical machines that are now gone or moved?
+        # But usually user expects "Machines associated with this salon". 
+        # For historical: if a machine generated money in Salon A in 2024, and I select Salon A, I want to see it, even if it is now in Salon B?
+        # That's complex. dashboard usually filters by "Current State" for list, OR "Revenue Source".
+        # Let's assume standard filter:
+        # Active: Current Salon must be in salon_ids.
+        # Historical: Revenue must be from Recaudacion in salon_ids.
+        
+        # Actually easier:
+        # We want list of machines relevant to the selection.
+        # If I select Salon A, I want: 
+        # 1. Machines currently in Salon A.
+        # 2. Machines that generated money in Salon A in the selected years.
+        
+        # So the OR logic holds, but both sides need salon filter.
+        
         q_machines = select(Maquina.id, Maquina.nombre, Maquina.salon_id).where(
-            (Maquina.activo == True) | (Maquina.id.in_(subq_historical))
+            (
+                (Maquina.activo == True) & 
+                (Maquina.salon_id.in_(salon_ids) if salon_ids else True)
+            ) 
+            | 
+            (Maquina.id.in_(subq_historical))
         )
     
     q_machines = q_machines.order_by(Maquina.nombre)
@@ -161,9 +195,12 @@ async def get_dashboard_stats(
              if not d.recaudacion or not d.recaudacion.fecha_fin: continue
              
              # Logic for machine net
-             bruto = (d.retirada_efectivo or 0) + (d.cajon or 0) - (d.pago_manual or 0) + (d.tasa_ajuste or 0)
-             neto = bruto - (d.tasa_calculada or 0)
-             val_shared = float(neto) / 2
+             bruto = (d.retirada_efectivo or 0) + (d.cajon or 0) - (d.pago_manual or 0) + (d.ajuste or 0)
+             neto = bruto - (d.tasa_estimada or 0) - (d.tasa_diferencia or 0)
+             neto = bruto - (d.tasa_estimada or 0) - (d.tasa_diferencia or 0)
+             # SALON gets percentage_salon% 
+             pct_salon = float(d.recaudacion.porcentaje_salon or 50) / 100.0
+             val_shared = float(neto) * pct_salon
              
              total_income_shared += val_shared
              year = d.recaudacion.fecha_fin.year
@@ -183,7 +220,9 @@ async def get_dashboard_stats(
         
         for r in recaudaciones:
             if not r.fecha_fin: continue
-            val_shared = float(r.total_global or 0) / 2
+            # SALON gets percentage_salon%
+            pct_salon = float(r.porcentaje_salon or 50) / 100.0
+            val_shared = float(r.total_global or 0) * pct_salon
             
             total_income_shared += val_shared
             year = r.fecha_fin.year
@@ -237,9 +276,11 @@ async def get_revenue_evolution(
             if not d.recaudacion or not d.recaudacion.fecha_fin: continue
             
             # Logic for machine net
-            bruto = (d.retirada_efectivo or 0) + (d.cajon or 0) - (d.pago_manual or 0) + (d.tasa_ajuste or 0)
-            neto = bruto - (d.tasa_calculada or 0)
-            val = float(neto) / 2
+            bruto = (d.retirada_efectivo or 0) + (d.cajon or 0) - (d.pago_manual or 0) + (d.ajuste or 0)
+            neto = bruto - (d.tasa_estimada or 0) - (d.tasa_diferencia or 0)
+            neto = bruto - (d.tasa_estimada or 0) - (d.tasa_diferencia or 0)
+            pct_salon = float(d.recaudacion.porcentaje_salon or 50) / 100.0
+            val = float(neto) * pct_salon
             
             year = d.recaudacion.fecha_fin.year
             month_idx = d.recaudacion.fecha_fin.month - 1
@@ -256,7 +297,8 @@ async def get_revenue_evolution(
         for r in recaudaciones:
             if not r.fecha_fin: continue
             
-            val = float(r.total_global or 0) / 2
+            pct_salon = float(r.porcentaje_salon or 50) / 100.0
+            val = float(r.total_global or 0) * pct_salon
             year = r.fecha_fin.year
             month_idx = r.fecha_fin.month - 1
             grouped_data[month_idx][str(year)] += val
@@ -298,9 +340,11 @@ async def get_revenue_by_salon(
             salon = d.recaudacion.salon
             salon_name = salon.nombre if salon else f"Unknown"
             
-            bruto = (d.retirada_efectivo or 0) + (d.cajon or 0) - (d.pago_manual or 0) + (d.tasa_ajuste or 0)
-            neto = bruto - (d.tasa_calculada or 0)
-            val = float(neto) / 2
+            bruto = (d.retirada_efectivo or 0) + (d.cajon or 0) - (d.pago_manual or 0) + (d.ajuste or 0)
+            neto = bruto - (d.tasa_estimada or 0) - (d.tasa_diferencia or 0)
+            neto = bruto - (d.tasa_estimada or 0) - (d.tasa_diferencia or 0)
+            pct_salon = float(d.recaudacion.porcentaje_salon or 50) / 100.0
+            val = float(neto) * pct_salon
             data[salon_name] += val
     else:
         q = select(Recaudacion).options(selectinload(Recaudacion.salon))
@@ -311,7 +355,8 @@ async def get_revenue_by_salon(
         
         for r in recaudaciones:
             salon_name = r.salon.nombre if r.salon else f"Salon {r.salon_id}"
-            val = float(r.total_global or 0) / 2
+            pct_salon = float(r.porcentaje_salon or 50) / 100.0
+            val = float(r.total_global or 0) * pct_salon
             data[salon_name] += val
             
     sorted_data = [{"name": k, "value": round(v, 2)} for k, v in sorted(data.items(), key=lambda x: x[1], reverse=True)]
@@ -346,8 +391,8 @@ async def get_top_machines(
     
     for d in detalles:
         # Calculate net for this machine entry
-        bruto = (d.retirada_efectivo or 0) + (d.cajon or 0) - (d.pago_manual or 0) + (d.tasa_ajuste or 0)
-        tasa = (d.tasa_calculada or 0)
+        bruto = (d.retirada_efectivo or 0) + (d.cajon or 0) - (d.pago_manual or 0) + (d.ajuste or 0)
+        tasa = (d.tasa_estimada or 0) + (d.tasa_diferencia or 0)
         neto = bruto - tasa
         
         # User gets 50%
@@ -363,9 +408,15 @@ async def get_top_machines(
         
         full_name = f"{m_name} ({salon_name})"
         
-        stats[full_name]["bruto"] += float(bruto) / 2
-        stats[full_name]["tasa"] += float(tasa) / 2
-        stats[full_name]["neto"] += float(neto) / 2
+        # SALON gets percentage_salon%
+        pct_salon = float(d.recaudacion.porcentaje_salon or 50) / 100.0
+        
+        # Accumulate each component separately (proportional check - assuming taxes also split? Usually taxes are deducted first. 
+        # The code previously split Bruto/Tasa/Neto ALL by 2. We will apply same ratio.)
+        
+        stats[full_name]["bruto"] += float(bruto) * pct_salon
+        stats[full_name]["tasa"] += float(tasa) * pct_salon
+        stats[full_name]["neto"] += float(neto) * pct_salon
 
     # Return ALL (no limit) sorted by Neto
     # Flatten structure for frontend

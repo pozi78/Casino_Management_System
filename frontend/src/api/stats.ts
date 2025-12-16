@@ -26,13 +26,16 @@ export interface FiltersMetadata {
 }
 
 export const statsApi = {
-    async getFiltersMetadata(years?: number[]) {
+    async getFiltersMetadata(years?: number[], salonIds?: number[]) {
         let url = '/stats/filters-metadata';
+        const params = new URLSearchParams();
         if (years && years.length > 0) {
-            const params = new URLSearchParams();
             years.forEach(id => params.append('years', id.toString()));
-            url += `?${params.toString()}`;
         }
+        if (salonIds && salonIds.length > 0) {
+            salonIds.forEach(id => params.append('salon_ids', id.toString()));
+        }
+        if (params.toString()) url += `?${params.toString()}`;
         const response = await api.get<FiltersMetadata>(url);
         return response.data;
     },

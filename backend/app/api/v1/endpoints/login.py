@@ -38,3 +38,18 @@ async def login_access_token(
         ),
         "token_type": "bearer",
     }
+
+@router.post("/login/renew-token", response_model=Token)
+async def renew_token(
+    current_user: Usuario = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Renew access token for the current user.
+    """
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    return {
+        "access_token": security.create_access_token(
+            current_user.id, expires_delta=access_token_expires
+        ),
+        "token_type": "bearer",
+    }

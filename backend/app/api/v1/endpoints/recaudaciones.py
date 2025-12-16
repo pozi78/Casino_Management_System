@@ -21,7 +21,9 @@ from app.schemas.recaudacion import (
 from app.models.recaudacion import RecaudacionFichero, Recaudacion, RecaudacionMaquina
 from app.api import deps
 from app.models.user import Usuario
+from app.models.user import Usuario
 from app.models.machine import MaquinaExcelMap, Puesto, Maquina
+from app.models.salon import Salon
 import pandas as pd
 from io import BytesIO
 import json
@@ -57,7 +59,143 @@ async def read_recaudaciones(
     Retrieve recaudaciones.
     """
     recaudaciones = await recaudacion.get_multi(db, skip=skip, limit=limit, salon_id=salon_id)
+    recaudaciones = await recaudacion.get_multi(db, skip=skip, limit=limit, salon_id=salon_id)
     return recaudaciones
+
+from pydantic import BaseModel
+class RecaudacionMetadata(BaseModel):
+    is_normalized: bool
+    salon_id: Optional[int] = None
+    fecha_inicio: Optional[datetime] = None
+    fecha_fin: Optional[datetime] = None
+    error: Optional[str] = None
+
+@router.post("/parse-metadata", response_model=RecaudacionMetadata)
+async def parse_recaudacion_metadata(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Parse Excel file to extract metadata for form pre-filling.
+    """
+    contents = await file.read()
+    try:
+        df = pd.read_excel(BytesIO(contents), header=None)
+    except Exception as e:
+         return {"is_normalized": False, "error": f"Error parsing excel: {str(e)}"}
+
+    # Check for Normalization (Version 1.0 in D3)
+    is_normalized = False
+    try:
+        if df.shape[0] > 3 and df.shape[1] > 4:
+            val = df.iloc[2, 3] # D3
+            if pd.notna(val) and isinstance(val, str) and "VERSION" in val.upper():
+                is_normalized = True
+    except:
+        pass
+    
+    if not is_normalized:
+        return {"is_normalized": False}
+
+    # Extract Data if Normalized
+    # A1: "SALON: {Name}" (Row 0, Col 0)
+    # E1: End Date (Row 0, Col 4) -> Current Recaudacion Date -> Form End Date
+    # E2: Start Date (Row 1, Col 4) -> Previous Recaudacion Date -> Form Start Date
+    
+    res = {"is_normalized": True}
+    
+    # Salon
+    try:
+        # Export format might be "SALON: Nombre" in A1 OR "SALON" in A1 and Name in B1
+        cell_val = df.iloc[0, 0] # A1
+        print(f"DEBUG: Parsing metadata. A1 value: '{cell_val}'")
+        
+        salon_name = None
+        
+        if pd.notna(cell_val) and isinstance(cell_val, str):
+            clean_a1 = cell_val.strip().upper()
+            if clean_a1 == "SALON" or clean_a1 == "SALON:":
+                # Name is in B1
+                val_b1 = df.iloc[0, 1]
+                print(f"DEBUG: A1 is label. Checking B1: '{val_b1}'")
+                if pd.notna(val_b1) and isinstance(val_b1, str):
+                    salon_name = val_b1.strip()
+            elif "SALON:" in clean_a1:
+                 # Name is in A1
+                 salon_name = cell_val.replace("SALON:", "").replace("Salon:", "").strip()
+            else:
+                 # Assuming A1 is the name directly? Or B1?
+                 # Let's try B1 just in case
+                 pass
+        
+        if not salon_name:
+             # Fallback: Try B1 directly if A1 failed to provide a name
+             val_b1 = df.iloc[0, 1]
+             if pd.notna(val_b1) and isinstance(val_b1, str):
+                 salon_name = val_b1.strip()
+
+        if salon_name:
+            print(f"DEBUG: Final extracted salon name: '{salon_name}'")
+            
+            # Find Salon by Name (Try exact first, then contained?)
+            stmt = select(Salon).where(Salon.nombre.ilike(salon_name))
+            salon = (await db.execute(stmt)).scalars().first()
+            
+            if not salon:
+                print(f"DEBUG: Exact match failed for '{salon_name}'. Trying containment.")
+                stmt = select(Salon).where(Salon.activo == True)
+                all_salons = (await db.execute(stmt)).scalars().all()
+                for s in all_salons:
+                    # Robust fuzzy match
+                    # Check if DB name is in CSV name OR CSV name is in DB Name
+                    if s.nombre.lower() in salon_name.lower() or salon_name.lower() in s.nombre.lower():
+                        salon = s
+                        print(f"DEBUG: Fuzzy match found: '{s.nombre}'")
+                        break
+            
+            if salon:
+                res["salon_id"] = salon.id
+                print(f"DEBUG: Matched Salon ID: {salon.id}")
+            else:
+                 print(f"DEBUG: No salon matched for '{salon_name}'")
+        else:
+            print("DEBUG: Could not extract any salon name string.")
+    except Exception as e:
+        print(f"Error parsing salon: {e}")
+
+    # Dates
+    def parse_date(val):
+        if isinstance(val, datetime):
+            return val
+        if isinstance(val, str):
+            try:
+                return datetime.fromisoformat(val)
+            except:
+                pass
+        return None
+
+    try:
+        # E1 (Row 0, Col 4) is DATE OF THIS RECAUDACION (End Date)
+        # E2 (Row 1, Col 4) is DATE OF PREVIOUS (Start Date)
+        
+        val_e1 = df.iloc[0, 4] # E1
+        val_e2 = df.iloc[1, 4] # E2
+        
+        # Current Form Logic:
+        # Fecha Inicio = Start of period (E2)
+        # Fecha Fin = End of period (E1)
+        
+        if pd.notna(val_e2):
+             res["fecha_inicio"] = val_e2
+             
+        if pd.notna(val_e1):
+             res["fecha_fin"] = val_e1
+            
+    except Exception as e:
+        print(f"Error parsing dates: {e}")
+
+    return res
 
 @router.post("/", response_model=RecaudacionSchema)
 async def create_recaudacion(
@@ -99,7 +237,100 @@ async def update_recaudacion(
     if not recaudacion_obj:
         raise HTTPException(status_code=404, detail="Recaudacion not found")
     recaudacion_updated = await recaudacion.update(db, db_obj=recaudacion_obj, obj_in=recaudacion_in)
+    
+    # Recalculate Tasa Diferencia if total_tasas changed (or always to be safe)
+    # Check if Dates Changed -> Recalculate Estimated Taxes
+    dates_changed = False
+    in_dump = recaudacion_in.model_dump(exclude_unset=True)
+    if 'fecha_inicio' in in_dump or 'fecha_fin' in in_dump:
+        await recalculate_estimated_taxes(db, id)
+        await db.refresh(recaudacion_obj) # Refresh to get new details if needed? Logic updates details directly.
+        dates_changed = True
+
+    if 'total_tasas' in in_dump or dates_changed:
+         await recalculate_tasa_diferencia(db, id)
+         
     return recaudacion_updated
+
+async def recalculate_estimated_taxes(db: AsyncSession, recaudacion_id: int):
+    # Fetch Recaudacion with details and machine info
+    stmt = select(Recaudacion).options(
+        selectinload(Recaudacion.detalles).options(
+            selectinload(RecaudacionMaquina.maquina).selectinload(Maquina.tipo_maquina),
+            selectinload(RecaudacionMaquina.puesto)
+        )
+    ).where(Recaudacion.id == recaudacion_id)
+    rec = (await db.execute(stmt)).scalars().first()
+    
+    if not rec or not rec.detalles:
+        return
+
+    # Calculate Days
+    if not rec.fecha_inicio or not rec.fecha_fin:
+        return
+        
+    days_diff = (rec.fecha_fin - rec.fecha_inicio).days
+    if days_diff < 0: days_diff = 0
+    
+    for d in rec.detalles:
+        # Re-evaluate weekly rate logic (Duplicate from CRUD, ideally refactor to helper)
+        tasa_base = 0
+        
+        # Determine Weekly Rate
+        weekly_rate = 0
+        if d.puesto and d.puesto.tasa_semanal:
+            weekly_rate = d.puesto.tasa_semanal
+        elif d.maquina:
+             if d.maquina.tasa_semanal_override:
+                 weekly_rate = d.maquina.tasa_semanal_override
+             elif d.maquina.tipo_maquina and d.maquina.tipo_maquina.tasa_semanal_orientativa:
+                 weekly_rate = d.maquina.tipo_maquina.tasa_semanal_orientativa
+        
+        # Calculate
+        if float(weekly_rate) > 0 and days_diff > 0:
+             daily_rate = float(weekly_rate) / 7.0
+             tasa_base = daily_rate * days_diff
+        
+        d.tasa_estimada = tasa_base
+        # tasa_final will be updated by recalculate_tasa_diferencia next
+        db.add(d)
+        
+    await db.commit()
+
+async def recalculate_tasa_diferencia(db: AsyncSession, recaudacion_id: int):
+    # 1. Get Recaudacion + Details
+    # Need to load details to iterate
+    stmt = select(Recaudacion).options(selectinload(Recaudacion.detalles)).where(Recaudacion.id == recaudacion_id)
+    rec = (await db.execute(stmt)).scalars().first()
+    if not rec or not rec.detalles:
+        return
+
+    # 2. Totals
+    total_real = float(rec.total_tasas or 0)
+    total_calculada = sum(float(d.tasa_estimada or 0) for d in rec.detalles)
+    
+    diff = total_real - total_calculada
+    
+    # 3. Distribute
+    # If total_calculada is 0, we can't distribute roughly. Avoid division by zero.
+    # If 0, maybe assign 0 to difference?
+    
+    for d in rec.detalles:
+        t_calc = float(d.tasa_estimada or 0)
+        
+        if total_calculada != 0:
+            weight = t_calc / total_calculada
+            d.tasa_diferencia = round(diff * weight, 4)
+        else:
+            d.tasa_diferencia = 0
+            
+        # Update Final
+        # Tasa Final = Calculada + Diferencia + Ajuste
+        d.tasa_final = float(d.tasa_estimada or 0) + float(d.tasa_diferencia or 0) + float(d.ajuste or 0)
+        
+        db.add(d)
+        
+    await db.commit()
 
 # --- Detail Endpoints ---
 
@@ -121,6 +352,34 @@ async def update_recaudacion_detail(
     
     updated_detail = await recaudacion_maquina.update(db, db_obj=detail_obj, obj_in=detail_in)
     return updated_detail
+
+@router.delete("/details/{detail_id}", response_model=RecaudacionMaquinaSchema)
+async def delete_recaudacion_detail(
+    detail_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Delete a specific machine line.
+    """
+    detail_obj = await recaudacion_maquina.get(db, id=detail_id)
+    if not detail_obj:
+        raise HTTPException(status_code=404, detail="Recaudacion Detail not found")
+    
+    # We could check here if Recaudacion is closed/locked
+    recaudacion_obj = await recaudacion.get(db, id=detail_obj.recaudacion_id)
+    if recaudacion_obj and recaudacion_obj.bloqueada:
+         raise HTTPException(status_code=400, detail="Cannot delete details from a locked recaudacion")
+
+    detail_deleted = await recaudacion_maquina.remove(db, id=detail_id)
+    
+    # Expunge parent to force reload of details from scratch
+    db.expunge(recaudacion_obj)
+    
+    # Recalculate differences for remaining items
+    await recalculate_tasa_diferencia(db, recaudacion_obj.id)
+    
+    return detail_deleted
 
 @router.delete("/{id}", response_model=RecaudacionSchema)
 async def delete_recaudacion(
@@ -264,10 +523,21 @@ async def analyze_recaudacion_excel(
             if pd.notna(val) and isinstance(val, str) and len(val) > 2:
                  # Filter out short strings or likely non-names
                  excel_names.add(val.strip().upper())
-                 
-    return await _process_analysis_result(excel_names, rec.salon_id, db)
 
-async def _process_analysis_result(excel_names: set, salon_id: int, db: AsyncSession):
+    # Check for Normalization (Version 1.0)
+    is_normalized = False
+    try:
+        # Check D3 (Row 2, Col 3) for "VERSION"
+        if df.shape[0] > 3 and df.shape[1] > 4:
+            val = df.iloc[2, 3]
+            if pd.notna(val) and isinstance(val, str) and "VERSION" in val.upper():
+                is_normalized = True
+    except:
+        pass
+                 
+    return await _process_analysis_result(excel_names, rec.salon_id, db, is_normalized)
+
+async def _process_analysis_result(excel_names: set, salon_id: int, db: AsyncSession, is_normalized: bool = False):
     # 2. Get Existing Mappings
     stmt = select(MaquinaExcelMap).where(MaquinaExcelMap.salon_id == salon_id)
     existing_maps = {m.excel_nombre.upper(): m for m in (await db.execute(stmt)).scalars().all()}
@@ -296,7 +566,7 @@ async def _process_analysis_result(excel_names: set, salon_id: int, db: AsyncSes
             "is_ignored": existing.is_ignored if existing else False
         })
         
-    return {"mappings": mappings_result, "puestos": puestos_list}
+    return {"mappings": mappings_result, "puestos": puestos_list, "is_normalized": is_normalized}
 
 
 @router.post("/{id}/files/{file_id}/analyze")
@@ -331,7 +601,19 @@ async def analyze_recaudacion_file(
             if pd.notna(val) and isinstance(val, str) and len(val) > 2:
                  excel_names.add(val.strip().upper())
 
-    return await _process_analysis_result(excel_names, rec.salon_id, db)
+                 excel_names.add(val.strip().upper())
+
+    # Check for Normalization (Version 1.0)
+    is_normalized = False
+    try:
+        if df.shape[0] > 3 and df.shape[1] > 4:
+            val = df.iloc[2, 3]
+            if pd.notna(val) and isinstance(val, str) and "VERSION" in val.upper():
+                is_normalized = True
+    except:
+        pass
+
+    return await _process_analysis_result(excel_names, rec.salon_id, db, is_normalized)
 
 
 @router.post("/{id}/import-excel")
@@ -343,6 +625,10 @@ async def import_recaudacion_excel(
     db: AsyncSession = Depends(get_db),
     current_user: Usuario = Depends(deps.get_current_active_user),
 ) -> Any:
+    import sys
+    print(f"DEBUG: import_recaudacion_excel called. id={id}, file_id={file_id}, file={file}, mappings_str={mappings_str}")
+    sys.stdout.flush()
+    
     # 1. Verify Recaudacion
     rec = await recaudacion.get(db=db, id=id)
     if not rec:
@@ -350,7 +636,9 @@ async def import_recaudacion_excel(
         
     # Check Inputs
     if not file and not file_id:
-         raise HTTPException(status_code=400, detail="Must provide either file or file_id")
+         print(f"DEBUG: Missing inputs. file={file}, file_id={file_id}")
+         sys.stdout.flush()
+         raise HTTPException(status_code=400, detail=f"Must provide either file or file_id. Received file={file}, file_id={file_id}")
 
     # 1.5 Update Mappings if provided
     if mappings_str:
@@ -434,6 +722,16 @@ async def import_recaudacion_excel(
     except Exception as e:
          raise HTTPException(400, f"Error parsing excel: {e}")
 
+    # Detect Normalization
+    is_normalized = False
+    try:
+        if df.shape[0] > 3 and df.shape[1] > 4:
+            val = df.iloc[2, 3]
+            if pd.notna(val) and isinstance(val, str) and "VERSION" in val.upper():
+                is_normalized = True
+    except:
+        pass
+
     updated_count = 0
     
     # 4. Prepare Maps for Import
@@ -443,78 +741,181 @@ async def import_recaudacion_excel(
     
     # Fetch Details for this Recaudacion to update them
     # We assume details already satisfy uniqueness by puesto/maquina for this recaudacion
-    stmt_details = select(RecaudacionMaquina).where(RecaudacionMaquina.recaudacion_id == id)
+    stmt_details = select(RecaudacionMaquina).options(
+        joinedload(RecaudacionMaquina.maquina),
+        joinedload(RecaudacionMaquina.puesto)
+    ).where(RecaudacionMaquina.recaudacion_id == id)
     current_details = (await db.execute(stmt_details)).scalars().all()
     
     details_by_puesto = {d.puesto_id: d for d in current_details if d.puesto_id}
     details_by_maquina = {d.maquina_id: d for d in current_details if d.maquina_id}
+    # Fallback map for normalized imports (Direct Name Match)
+    details_by_name = {}
+    for d in current_details:
+        if d.maquina and d.maquina.nombre:
+            key_name = d.maquina.nombre.strip()
+            # If multi-post (has Puesto), append suffixes compatible with Export Logic
+            if d.puesto:
+                p_desc = d.puesto.descripcion
+                p_numero = d.puesto.numero_puesto
+                puesto_str = f" - {p_desc}" if p_desc else (f" - PUESTO {p_numero}" if p_numero else "")
+                key_name = f"{key_name}{puesto_str}"
+            
+            details_by_name[key_name.upper()] = d
 
     # 5. Iterate Rows
     for r_idx, row in df.iterrows():
-        # Check Column 1 (Index 1) for Name
-        if len(row) < 2: continue
         
-        raw_name = row[1]
-        if pd.isna(raw_name) or not isinstance(raw_name, str):
-            continue
-            
-        clean_name = raw_name.strip().upper()
+        detail = None
         
-        # Check Map
-        if clean_name in name_map:
-            mapping = name_map[clean_name]
+        if is_normalized:
+            # Normalized Format:
+            # Start at Row 12 (Index 12)
+            if r_idx < 12: continue
             
-            detail = None
-            if mapping.puesto_id:
-                detail = details_by_puesto.get(mapping.puesto_id)
-            elif mapping.maquina_id:
-                detail = details_by_maquina.get(mapping.maquina_id)
+            # Col 0: Name, Col 1: Retirada, Col 2: Cajon, Col 3: Manual, Col 4: Ajuste
+            if len(row) < 5: continue
             
+            raw_name = row[0]
+            if pd.isna(raw_name) or not isinstance(raw_name, str): continue
+            
+            # For normalized, we expect exact name matches usually, OR we use the map if they were mapped?
+            # The prompt says: "use the same mapping system ... if normalized make automatic import taking into account version".
+            # Automatic import implies we trust the names or rely on the mapping system?
+            # If it's normalized (exported by us), the names should match exactly with `d["MAQUINA"]` which is `f"{m_nombre}{puesto_str}"`.
+            # HOWEVER, `name_map` is keyed by `excel_nombre`. If we use the map, we are safe.
+            # analyze_excel adds names to the map.
+            
+            clean_name = raw_name.strip().upper()
+            
+            if clean_name in name_map:
+                print(f"DEBUG: Found in name_map: '{clean_name}'")
+                mapping = name_map[clean_name]
+                if mapping.puesto_id:
+                     detail = details_by_puesto.get(mapping.puesto_id)
+                elif mapping.maquina_id:
+                     detail = details_by_maquina.get(mapping.maquina_id)
+            else:
+                 # Helper: Try direct match with machine name
+                 # This covers the case where the normalized file uses valid system names but they haven't been "Mapped" in MaquinaExcelMap yet.
+                 print(f"DEBUG: Not in map. Checking details_by_name for: '{clean_name}'")
+                 if clean_name in details_by_name:
+                     print(f"DEBUG: Found exact match in details_by_name for '{clean_name}'")
+                     detail = details_by_name[clean_name]
+                 else:
+                     # Fallback 2: Check containment?
+                     # Normalized export might include Puesto number "Name - P1"
+                     for k, d in details_by_name.items():
+                         if k in clean_name or clean_name in k:
+                              print(f"DEBUG: Fuzzy match in details_by_name: '{clean_name}' ~= '{k}'")
+                              detail = d
+                              break
+                     if not detail:
+                          print(f"DEBUG: Failed to match '{clean_name}'")
+
             if detail:
-                # Extract Values. Col 5: Retirada, 6: Cajon, 7: Pago Manual
                 def get_val(idx):
                     v = row[idx] if idx < len(row) else 0
                     return float(v) if pd.notna(v) and isinstance(v, (int, float)) else 0
                 
-                detail.retirada_efectivo = get_val(5)
-                detail.cajon = get_val(6)
-                detail.pago_manual = get_val(7)
+                detail.retirada_efectivo = get_val(1)
+                detail.cajon = get_val(2)
+                detail.pago_manual = get_val(3)
+                detail.ajuste = get_val(4)
                 
                 db.add(detail)
                 updated_count += 1
+                
+        else:
+            # Legacy Format
+            # Check Column 1 (Index 1) for Name
+            if len(row) < 2: continue
+            
+            raw_name = row[1]
+            if pd.isna(raw_name) or not isinstance(raw_name, str):
+                continue
+                
+            clean_name = raw_name.strip().upper()
+            
+            # Check Map
+            if clean_name in name_map:
+                mapping = name_map[clean_name]
+                
+                detail = None
+                if mapping.puesto_id:
+                    detail = details_by_puesto.get(mapping.puesto_id)
+                elif mapping.maquina_id:
+                    detail = details_by_maquina.get(mapping.maquina_id)
+                
+                if detail:
+                    # Extract Values. Col 5: Retirada, 6: Cajon, 7: Pago Manual
+                    def get_val(idx):
+                        v = row[idx] if idx < len(row) else 0
+                        return float(v) if pd.notna(v) and isinstance(v, (int, float)) else 0
+                    
+                    detail.retirada_efectivo = get_val(5)
+                    detail.cajon = get_val(6)
+                    detail.pago_manual = get_val(7)
+                    
+                    db.add(detail)
+                    updated_count += 1
 
     # 6. Extract Totals (Impuestos, DPS)
     # Based on analysis: IMPUESTOS at Col 3, Value at Col 5.
     found_totals = False
-    for r_idx, row in df.iterrows():
-        if len(row) < 6: continue
-        
-        label_col = 3
-        val_col = 5
-        
-        label = row[label_col]
-        if pd.isna(label) or not isinstance(label, str):
-            continue
+    
+    if not is_normalized:
+        for r_idx, row in df.iterrows():
+            if len(row) < 6: continue
             
-        label = label.upper()
-        
-        if "IMPUESTOS" in label:
-            val = row[val_col]
-            if pd.notna(val) and isinstance(val, (int, float)):
-                rec.total_tasas = float(val)
-                found_totals = True
+            label_col = 3
+            val_col = 5
+            
+            label = row[label_col]
+            if pd.isna(label) or not isinstance(label, str):
+                continue
                 
-        if "DPS" in label:
-            val = row[val_col]
-            if pd.notna(val) and isinstance(val, (int, float)):
-                rec.depositos = float(val)
-            else:
-                rec.depositos = 0
+            label = label.upper()
+            
+            if "IMPUESTOS" in label:
+                val = row[val_col]
+                if pd.notna(val) and isinstance(val, (int, float)):
+                    rec.total_tasas = float(val)
+                    found_totals = True
+                    
+            if "DPS" in label:
+                val = row[val_col]
+                if pd.notna(val) and isinstance(val, (int, float)):
+                    rec.depositos = float(val)
+    else:
+        # Normalized files extraction (Rows 3-10 contain summary)
+        # Row 6 (Index 5): TOTAL TASAS (Col 1/B)
+        # Row 8 (Index 7): DEPOSITOS (Col 1/B)
+        # Row 9 (Index 8): OTROS CONCEPTOS (Col 1/B)
+        print("DEBUG: Extracting totals for normalized file")
+        
+        def get_val_at(r, c):
+             if r < df.shape[0] and c < df.shape[1]:
+                 val = df.iloc[r, c]
+                 if pd.notna(val) and isinstance(val, (int, float)):
+                     return float(val)
+             return 0.0
+
+        # Row indices are 0-based
+        rec.total_tasas = get_val_at(5, 1)    # Row 6
+        rec.depositos = get_val_at(7, 1)      # Row 8
+        rec.otros_conceptos = get_val_at(8, 1) # Row 9
+        
+        found_totals = True
+        print(f"DEBUG: Extracted Totals - Tasas: {rec.total_tasas}, Dep: {rec.depositos}, Otros: {rec.otros_conceptos}")
                 
     if found_totals:
         db.add(rec)
         
     await db.commit()
+    
+    # Recalculate Tasa Diferencia after import
+    await recalculate_tasa_diferencia(db, id)
     
     return {"status": "ok", "updated": updated_count, "mappings_updated": True if mappings_str else False}
 
@@ -588,8 +989,8 @@ async def export_recaudacion_excel(
             "RETIRADA": det.retirada_efectivo or 0,
             "CAJON": det.cajon or 0,
             "PAGO MANUAL": det.pago_manual or 0,
-            "AJUSTE": det.tasa_ajuste or 0,
-            "TASA_EST": det.tasa_calculada or 0,
+            "AJUSTE": det.ajuste or 0,
+            "TASA_EST": det.tasa_estimada or 0,
             "raw_name": m_nombre # For grouping
         })
         

@@ -120,15 +120,18 @@ export default function Dashboard() {
                 // to avoid URL length limits and to trigger efficient backend logic.
 
                 const isAllMonths = activeFilters.months.length === filtersMetadata.months.length;
-                // REMOVED OPTIMIZATION: Always send machine_ids to force sum-of-parts calculation.
-                // This ensures consistency preventing backend from switching to "Global Total" which caused discrepancies.
+
+                const validMachineIds = new Set(filtersMetadata.machines.map((m: any) => m.id));
+                const selectedValidMachines = activeFilters.machine_ids.filter(id => validMachineIds.has(id));
+                const isAllMachines = selectedValidMachines.length === filtersMetadata.machines.length;
+
                 const isAllSalons = availableSalons.length > 0 && selectedSalonIds.length === availableSalons.length;
 
                 const queryFilters = {
                     salon_ids: isAllSalons ? undefined : (selectedSalonIds.length > 0 ? selectedSalonIds : undefined),
                     years: activeFilters.years,
                     months: isAllMonths ? undefined : activeFilters.months,
-                    machine_ids: activeFilters.machine_ids
+                    machine_ids: isAllMachines ? undefined : selectedValidMachines
                 };
 
                 // Fetch Stats separately so cards always load
@@ -170,21 +173,22 @@ export default function Dashboard() {
         const updateMachines = async () => {
             try {
                 // Fetch new metadata based on selected years
-                const data = await statsApi.getFiltersMetadata(activeFilters.years);
+                const data = await statsApi.getFiltersMetadata(activeFilters.years, selectedSalonIds);
 
                 setFiltersMetadata((prev: any) => {
-                    // Logic to auto-select NEW machines that weren't in the previous list
-                    // We need to compare data.machines vs prev.machines
-                    const previousMachineIds = new Set(prev.machines.map((m: any) => m.id));
-                    const newMachines = data.machines.filter((m: any) => !previousMachineIds.has(m.id));
-                    const newMachineIds = newMachines.map((m: any) => m.id);
+                    // Logic to auto-select ALL machines when metadata updates (e.g. Salon/Year change)
+                    // This ensures we default to "All" (Global Context) and avoid stale ID issues.
+                    const allNewMachineIds = data.machines.map((m: any) => m.id);
 
-                    if (newMachineIds.length > 0) {
-                        setActiveFilters(currentFilters => ({
+                    // We update active filters directly here to ensure sync
+                    setActiveFilters(currentFilters => {
+                        // Optional: Only overwrite if we want to force "All" on context switch.
+                        // Given the bug, this is the safest approach to guarantee "Global" logic works.
+                        return {
                             ...currentFilters,
-                            machine_ids: [...currentFilters.machine_ids, ...newMachineIds] // Add only new ones
-                        }));
-                    }
+                            machine_ids: allNewMachineIds
+                        };
+                    });
 
                     return {
                         ...prev,
@@ -199,7 +203,7 @@ export default function Dashboard() {
         if (filtersMetadata.years.length > 0) {
             updateMachines();
         }
-    }, [activeFilters.years]);
+    }, [activeFilters.years, selectedSalonIds]);
 
     const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value);
@@ -207,17 +211,19 @@ export default function Dashboard() {
 
     return (
         <div className="max-w-7xl mx-auto space-y-8">
-            <header>
-                <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-                <p className="text-gray-500 mt-1">Bienvenido al panel de administración de Atlantic & Mistery.</p>
-            </header>
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+                    <p className="text-gray-500 mt-1">Panel de Administración</p>
+                </div>
 
-            <DashboardFilters
-                metadata={filtersMetadata}
-                filters={activeFilters}
-                onChange={setActiveFilters}
-                salons={availableSalons}
-            />
+                <DashboardFilters
+                    metadata={filtersMetadata}
+                    filters={activeFilters}
+                    onChange={setActiveFilters}
+                    salons={availableSalons}
+                />
+            </div>
 
             {/* Stats Grid */}
             {/* Stats Grid */}
@@ -228,8 +234,8 @@ export default function Dashboard() {
                         <div>
                             <p className="text-sm font-medium text-gray-500">
                                 {selectedSalonIds.length === 1
-                                    ? "Ingreso Anual del Salón (50%)"
-                                    : "Ingreso Anual de los Salones (50%)"}
+                                    ? "Ingreso Anual del Salón"
+                                    : "Ingreso Anual de los Salones"}
                             </p>
                             <h3 className="text-2xl font-bold text-gray-900 mt-1">
                                 {isLoading ? "..." : formatCurrency(stats?.ingresos_totales || 0)}
