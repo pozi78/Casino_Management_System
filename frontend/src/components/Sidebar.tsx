@@ -54,7 +54,7 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
 
     return (
         <aside
-            className={`fixed left-0 top-0 z-40 h-screen transition-all duration-300 ease-in-out border-r border-[#064E3B]/20 bg-[#064E3B] text-white flex flex-col relative ${isOpen ? 'w-64' : 'w-20'
+            className={`fixed left-0 top-0 z-40 h-screen transition-all duration-300 ease-in-out border-r border-[#064E3B]/20 bg-[#064E3B] text-white flex flex-col shrink-0 ${isOpen ? 'w-64' : 'w-20'
                 }`}
         >
             {/* Background Layers */}

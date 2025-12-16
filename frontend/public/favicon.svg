@@ -1,0 +1,19 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Main Red Circle -->
+  <circle cx="256" cy="256" r="256" fill="#C60C0C"/>
+  
+  <!-- Edge Details (White Squares/Gear effect) -->
+  <path d="M256 0v64M256 512v-64M0 256h64M512 256h-64" stroke="white" stroke-width="60" stroke-dasharray="20 120" stroke-linecap="butt"/>
+  <circle cx="256" cy="256" r="192" stroke="white" stroke-width="16" stroke-dasharray="40 20"/>
+  
+  <!-- Inner Circle to clean up edge dashes slightly -->
+  <circle cx="256" cy="256" r="180" fill="#C60C0C"/>
+  <circle cx="256" cy="256" r="170" stroke="white" stroke-width="8"/>
+
+  <!-- Star -->
+  <path d="M256 120l25 70h75l-60 45 25 70-65-45-65 45 25-70-60-45h75z" fill="white"/>
+
+  <!-- Text -->
+  <text x="256" y="320" font-family="Arial, sans-serif" font-weight="bold" font-size="80" fill="white" text-anchor="middle">CASINO</text>
+  <text x="256" y="400" font-family="Arial, sans-serif" font-weight="bold" font-size="70" fill="white" text-anchor="middle">$100</text>
+</svg>
