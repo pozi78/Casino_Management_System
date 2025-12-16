@@ -1,4 +1,17 @@
 import api from './axios';
+import type { Salon } from './salones';
+import type { Role } from './roles';
+
+export interface UsuarioSalonPermission {
+    salon_id: number;
+    puede_ver: boolean;
+    puede_editar: boolean;
+    ver_dashboard?: boolean;
+    ver_recaudaciones?: boolean;
+    editar_recaudaciones?: boolean;
+    ver_historico?: boolean;
+    salon?: Salon;
+}
 
 export interface User {
     id: number;
@@ -6,6 +19,7 @@ export interface User {
     username: string;
     nombre?: string;
     activo: boolean;
+
     // New fields
     telefono?: string;
     telegram_user?: string;
@@ -17,6 +31,9 @@ export interface User {
     direccion_postal?: string;
     notas?: string;
     ultimo_acceso?: string;
+
+    salones_asignados?: UsuarioSalonPermission[];
+    roles?: Role[];
 }
 
 export interface UserCreate {
@@ -37,6 +54,9 @@ export interface UserCreate {
     dni?: string;
     direccion_postal?: string;
     notas?: string;
+
+    role_ids?: number[];
+    salones_permission?: UsuarioSalonPermission[];
 }
 
 export interface UserUpdate {
@@ -55,6 +75,9 @@ export interface UserUpdate {
     dni?: string;
     direccion_postal?: string;
     notas?: string;
+
+    role_ids?: number[];
+    salones_permission?: UsuarioSalonPermission[];
 }
 
 export const usersApi = {

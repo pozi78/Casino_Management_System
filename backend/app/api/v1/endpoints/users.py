@@ -7,7 +7,7 @@ from sqlalchemy.future import select
 from app.api import deps
 from app.core import security
 from app.db.session import get_db
-from app.models.user import Usuario
+from app.models.user import Usuario, Rol, UsuarioSalon
 from app.schemas.user import User, UserCreate, UserUpdate
 
 router = APIRouter()
@@ -58,9 +58,33 @@ async def create_user(
         direccion_postal=user_in.direccion_postal,
         notas=user_in.notas
     )
+    
+    # Handle Roles
+    if user_in.role_ids:
+        result_roles = await db.execute(select(Rol).where(Rol.id.in_(user_in.role_ids)))
+        roles = result_roles.scalars().all()
+        db_obj.roles = roles
+        
     db.add(db_obj)
     await db.commit()
     await db.refresh(db_obj)
+    
+    # Handle Salones Permissions (needs user id)
+    if user_in.salones_permission:
+        for perm in user_in.salones_permission:
+            us = UsuarioSalon(
+                usuario_id=db_obj.id,
+                salon_id=perm.salon_id,
+                puede_ver=perm.puede_ver,
+                puede_editar=perm.puede_editar,
+                ver_dashboard=perm.ver_dashboard,
+                ver_recaudaciones=perm.ver_recaudaciones,
+                editar_recaudaciones=perm.editar_recaudaciones,
+                ver_historico=perm.ver_historico
+            )
+            db.add(us)
+        await db.commit()
+        await db.refresh(db_obj)
 
     # Re-fetch the user with necessary relationships loaded to avoid Async Lazy Load errors
     from sqlalchemy.orm import selectinload
@@ -69,7 +93,8 @@ async def create_user(
     result = await db.execute(
         select(Usuario)
         .options(
-            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon)
+            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon),
+            selectinload(Usuario.roles)
         )
         .where(Usuario.id == db_obj.id)
     )
@@ -86,14 +111,18 @@ async def read_user_me(
     Get current user.
     """
     # Check if user is Admin / Superuser
-    # We explicitly load roles to avoid DetachedInstanceError or LazyLoad issues in async
-    from app.models.user import Rol
-    result_roles = await db.execute(
-        select(Rol)
-        .join(Rol.usuarios)
+    # Reload user with eager relationships to prevent MissingGreenlet errors
+    from sqlalchemy.orm import selectinload
+    result = await db.execute(
+        select(Usuario)
+        .options(
+            selectinload(Usuario.roles),
+            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon)
+        )
         .where(Usuario.id == current_user.id)
     )
-    user_roles = result_roles.scalars().all()
+    current_user = result.scalars().first()
+    user_roles = current_user.roles
     
     is_admin = (
         current_user.username == 'admin' or 
@@ -120,13 +149,21 @@ async def read_user_me(
                     "usuario_id": current_user.id,
                     "puede_ver": True,
                     "puede_editar": True,
+                    "ver_dashboard": True,
+                    "ver_recaudaciones": True,
+                    "editar_recaudaciones": True,
+                    "ver_historico": True,
                     "salon": salon
                 })
         
         user_dict = jsonable_encoder(current_user)
         user_dict['salones_asignados'] = virtual_assignments
+        # Manually attach roles for Admin
+        user_dict['roles'] = [jsonable_encoder(r) for r in user_roles]
         return user_dict
 
+    # For non-admin, ensure roles are attached
+    current_user.roles = user_roles
     return current_user
 
 @router.get("/", response_model=List[User])
@@ -145,7 +182,8 @@ async def read_users(
     result = await db.execute(
         select(Usuario)
         .options(
-            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon)
+            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon),
+            selectinload(Usuario.roles)
         )
         .offset(skip).limit(limit)
     )
@@ -167,7 +205,8 @@ async def read_user_by_id(
     result = await db.execute(
         select(Usuario)
         .options(
-            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon)
+            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon),
+            selectinload(Usuario.roles)
         )
         .where(Usuario.id == user_id)
     )
@@ -199,7 +238,8 @@ async def update_user(
     result = await db.execute(
         select(Usuario)
         .options(
-            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon)
+            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon),
+            selectinload(Usuario.roles)
         )
         .where(Usuario.id == user_id)
     )
@@ -217,7 +257,35 @@ async def update_user(
         update_data["hash_password"] = hashed_password
         
     for field, value in update_data.items():
-        setattr(user, field, value)
+        if field not in ['role_ids', 'salones_permission']:
+             setattr(user, field, value)
+    
+    # Update Roles
+    if user_in.role_ids is not None:
+        # We need to fetch current roles to avoid issues, or just overwrite
+        result_roles = await db.execute(select(Rol).where(Rol.id.in_(user_in.role_ids)))
+        roles = result_roles.scalars().all()
+        user.roles = roles
+        
+    # Update Salones Permissions
+    if user_in.salones_permission is not None:
+         # Remove existing
+        from sqlalchemy import delete
+        await db.execute(delete(UsuarioSalon).where(UsuarioSalon.usuario_id == user.id))
+        db.expire(user, ['salones_asignados'])
+        
+        for perm in user_in.salones_permission:
+            us = UsuarioSalon(
+                usuario_id=user.id,
+                salon_id=perm.salon_id,
+                puede_ver=perm.puede_ver,
+                puede_editar=perm.puede_editar,
+                ver_dashboard=perm.ver_dashboard,
+                ver_recaudaciones=perm.ver_recaudaciones,
+                editar_recaudaciones=perm.editar_recaudaciones,
+                ver_historico=perm.ver_historico
+            )
+            db.add(us)
         
     db.add(user)
     await db.commit()
@@ -230,7 +298,8 @@ async def update_user(
     result = await db.execute(
         select(Usuario)
         .options(
-            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon)
+            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon),
+            selectinload(Usuario.roles)
         )
         .where(Usuario.id == user_id)
     )
@@ -261,7 +330,8 @@ async def delete_user(
     result = await db.execute(
         select(Usuario)
         .options(
-            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon)
+            selectinload(Usuario.salones_asignados).selectinload(UsuarioSalon.salon),
+            selectinload(Usuario.roles)
         )
         .where(Usuario.id == user_id)
     )

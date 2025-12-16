@@ -16,8 +16,10 @@ export const SalonFilterProvider = ({ children }: { children: ReactNode }) => {
     const { user } = useAuth();
     const [selectedSalonIds, setSelectedSalonIds] = useState<number[]>([]);
 
-    // Helper to get simple salon list from user assignment
-    const availableSalons = user?.salones_asignados?.map(ua => ua.salon) || [];
+    // Helper to get simple salon list from user assignment, filtering by visibility permission
+    const availableSalons = user?.salones_asignados
+        ?.filter(ua => ua.puede_ver)
+        .map(ua => ua.salon) || [];
 
     // Initialize selection when user loads
     useEffect(() => {

@@ -49,8 +49,11 @@ import { useState, useEffect } from 'react';
 
 import DashboardFilters from '../components/dashboard/DashboardFilters';
 
+import { usePermission } from '../hooks/usePermission';
+
 export default function Dashboard() {
     const { selectedSalonIds, availableSalons } = useSalonFilter();
+    const { canViewDashboard } = usePermission();
 
     // Filters State
     const [filtersMetadata, setFiltersMetadata] = useState<any>({ years: [], months: [], machines: [] });
@@ -96,17 +99,42 @@ export default function Dashboard() {
         const fetchStats = async () => {
             setIsLoading(true);
 
-            // Standard Behavior: If user explicitly deselects all salons, or any other primary filter, show no data.
-            if (selectedSalonIds.length === 0 ||
-                activeFilters.years.length === 0 ||
+            // Filter salons based on Dashboard Permission
+            const allowedSalonIds = selectedSalonIds.filter(id => canViewDashboard(id));
+
+            // Standard Behavior: If user explicitly deselects all salons, or NO allowed salons, or any other primary filter
+            if (activeFilters.years.length === 0 ||
                 activeFilters.months.length === 0 ||
-                activeFilters.machine_ids.length === 0) {
+                activeFilters.machine_ids.length === 0 ||
+                (selectedSalonIds.length > 0 && allowedSalonIds.length === 0)) { // If salons selected but none allowed
+
                 setStats({
                     ingresos_totales: 0,
                     usuarios_activos: 0,
                     salones_operativos: 0,
                     maquinas_activas: 0
                 });
+                setRevenueEvolution([]);
+                setRevenueBySalon([]);
+                setTopMachines([]);
+                setIsLoading(false);
+                return;
+            }
+
+            // If ALL salons are unselected (global view concept), we actually might want to show ALL ALLOWED salons.
+            // But current logic implies: selectedSalonIds empty -> "Global/All" OR "None"?
+            // Usually empty selection in filters means "All". 
+            // Let's assume:
+            // - If selectedSalonIds is NOT empty -> use intersection with allowed.
+            // - If selectedSalonIds IS empty -> use ALL AVAILABLE salons intersected with allowed.
+
+            let effectiveSalonIds = selectedSalonIds.length > 0
+                ? allowedSalonIds
+                : availableSalons.map(s => s.id).filter(id => canViewDashboard(id));
+
+            if (effectiveSalonIds.length === 0) {
+                // Nothing to show
+                setStats({ ingresos_totales: 0, usuarios_activos: 0, salones_operativos: 0, maquinas_activas: 0 });
                 setRevenueEvolution([]);
                 setRevenueBySalon([]);
                 setTopMachines([]);
@@ -125,10 +153,13 @@ export default function Dashboard() {
                 const selectedValidMachines = activeFilters.machine_ids.filter(id => validMachineIds.has(id));
                 const isAllMachines = selectedValidMachines.length === filtersMetadata.machines.length;
 
-                const isAllSalons = availableSalons.length > 0 && selectedSalonIds.length === availableSalons.length;
+                // Check if effective IDs cover all available allowed IDs
+                // Simplified: Pass explicit IDs if not "All".
+                // If effectiveSalonIds includes all available, we can pass undefined? 
+                // Only if available == allowed. Safer to pass explicit IDs if we are filtering for permissions.
 
                 const queryFilters = {
-                    salon_ids: isAllSalons ? undefined : (selectedSalonIds.length > 0 ? selectedSalonIds : undefined),
+                    salon_ids: effectiveSalonIds,
                     years: activeFilters.years,
                     months: isAllMonths ? undefined : activeFilters.months,
                     machine_ids: isAllMachines ? undefined : selectedValidMachines

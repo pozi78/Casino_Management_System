@@ -26,4 +26,4 @@ Este documento contiene las reglas inquebrantables para el desarrollo y mantenim
     *   **NO pedir permiso** ni confirmación al usuario para ejecutar comandos de lectura o diagnóstico que no modifiquen el sistema.
     *   Esto incluye, pero no se limita a: `ls`, `cat`, `find`, `grep`, `docker logs`, `docker compose logs`, `docker ps`, `docker compose ps`, `curl` (para lectura).
     *   Ejecutar estos comandos proactivamente cuando sea necesario para obtener información.
-    *   Interactuar siempre en españo
+    *   Responder e Interactuar siempre en español

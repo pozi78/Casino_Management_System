@@ -18,17 +18,35 @@ class UserBase(BaseModel):
     dni: Optional[str] = None
     direccion_postal: Optional[str] = None
     notas: Optional[str] = None
+# Optional properties
+    dni: Optional[str] = None
+    direccion_postal: Optional[str] = None
+    notas: Optional[str] = None
     ultimo_acceso: Optional[str] = None
+
+class UsuarioSalonPermission(BaseModel):
+    salon_id: int
+    puede_ver: bool
+    puede_editar: bool
+    ver_dashboard: Optional[bool] = False
+    ver_recaudaciones: Optional[bool] = False
+    editar_recaudaciones: Optional[bool] = False
+    ver_historico: Optional[bool] = False 
 
 # Properties to receive via API on creation
 class UserCreate(UserBase):
     email: EmailStr
     username: str
+    username: str
     password: str
+    role_ids: List[int] = []
+    salones_permission: List[UsuarioSalonPermission] = []
 
 # Properties to receive via API on update
 class UserUpdate(UserBase):
     password: Optional[str] = None
+    role_ids: Optional[List[int]] = None
+    salones_permission: Optional[List[UsuarioSalonPermission]] = None
 
 class UserInDBBase(UserBase):
     id: Optional[int] = None
@@ -43,6 +61,10 @@ class UsuarioSalon(BaseModel):
     salon_id: int
     puede_ver: bool
     puede_editar: bool
+    ver_dashboard: bool = False
+    ver_recaudaciones: bool = False
+    editar_recaudaciones: bool = False
+    ver_historico: bool = False
     salon: Optional[Salon] = None
 
     class Config:
@@ -50,7 +72,11 @@ class UsuarioSalon(BaseModel):
 
 class User(UserInDBBase):
     salones_asignados: List[UsuarioSalon] = []
+    roles: List['Role'] = []
 
 # Additional properties stored in DB
 class UserInDB(UserInDBBase):
     hash_password: str
+
+from .role import Role
+User.update_forward_refs()

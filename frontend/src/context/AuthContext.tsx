@@ -11,6 +11,10 @@ interface UsuarioSalon {
     salon_id: number;
     puede_ver: boolean;
     puede_editar: boolean;
+    ver_dashboard?: boolean;
+    ver_recaudaciones?: boolean;
+    editar_recaudaciones?: boolean;
+    ver_historico?: boolean;
     salon: Salon;
 }
 

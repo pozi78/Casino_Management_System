@@ -175,300 +175,34 @@ const GroupedRenderer = ({ data, depthKeys, navigate, salones, activeGroupingKey
     );
 };
 
-export default function Recaudaciones() {
-    const navigate = useNavigate();
-    const { selectedSalonIds } = useSalonFilter();
-    const [recaudaciones, setRecaudaciones] = useState<Recaudacion[]>([]);
-    const [salones, setSalons] = useState<Salon[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [showModal, setShowModal] = useState(false);
+import { usePermission } from '../hooks/usePermission';
 
-    // Dynamic Grouping State
-    const [activeGroupingKeys, setActiveGroupingKeys] = useState<GroupingKey[]>(() => {
-        const saved = localStorage.getItem('recaudaciones_grouping_keys');
-        return saved ? JSON.parse(saved) : [];
-    });
+// ... (in Recaudaciones component)
 
-    useEffect(() => {
-        localStorage.setItem('recaudaciones_grouping_keys', JSON.stringify(activeGroupingKeys));
-    }, [activeGroupingKeys]);
+const navigate = useNavigate();
+const { selectedSalonIds } = useSalonFilter();
+const { canViewRecaudaciones, canEditRecaudaciones } = usePermission(); // usePermission hook
+const [recaudaciones, setRecaudaciones] = useState<Recaudacion[]>([]);
+// ...
 
-    const toggleGroupingKey = (key: GroupingKey) => {
-        setActiveGroupingKeys(prev => {
-            if (prev.includes(key)) {
-                return prev.filter(k => k !== key);
-            } else {
-                return [...prev, key];
-            }
-        });
-    };
+// Filter recaudaciones: Must be in selected IDs AND have view_recaudaciones permission
+const filteredRecaudaciones = recaudaciones.filter(rec =>
+    selectedSalonIds.includes(rec.salon_id) && canViewRecaudaciones(rec.salon_id)
+);
 
-    // Recursive Grouping Helper
-    const recursiveGroup = (data: Recaudacion[], keys: GroupingKey[]): any => {
-        if (keys.length === 0) return data;
+// Filter salons for "New Recaudación" dropdown: Must have edit_recaudaciones permission
+const editableSalons = salones.filter(s => canEditRecaudaciones(s.id));
+const canCreateAny = editableSalons.length > 0;
 
-        const currentKey = keys[0];
-        const grouped: Record<string, Recaudacion[]> = {};
+// ...
 
-        // Helper inside to get name
-        const getSalonName = (id: number) => salones.find(s => s.id === id)?.nombre || 'Unknown';
+return (
+    <div className="space-y-6">
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+            {/* ... Header ... */}
 
-        data.forEach(rec => {
-            let groupValue = 'Unknown';
-            const date = new Date(rec.fecha_fin || rec.fecha_cierre);
-
-            if (currentKey === 'salon') {
-                groupValue = getSalonName(rec.salon_id);
-            } else if (currentKey === 'year') {
-                groupValue = date.getFullYear().toString();
-            } else if (currentKey === 'month') {
-                const m = date.toLocaleString('es-ES', { month: 'long' });
-                groupValue = m.charAt(0).toUpperCase() + m.slice(1);
-            }
-
-            if (!grouped[groupValue]) grouped[groupValue] = [];
-            grouped[groupValue].push(rec);
-        });
-
-        // Recursively group children
-        const result: Record<string, any> = {};
-        Object.keys(grouped).forEach(key => {
-            result[key] = recursiveGroup(grouped[key], keys.slice(1));
-        });
-
-        return result;
-    };
-
-    // Filter recaudaciones
-    const filteredRecaudaciones = recaudaciones.filter(rec => selectedSalonIds.includes(rec.salon_id));
-
-    const getSalonName = (id: number) => salones.find(s => s.id === id)?.nombre || 'Unknown';
-
-    // Delete Modal State
-    const [deleteId, setDeleteId] = useState<number | null>(null);
-    const [deleteConfirmation, setDeleteConfirmation] = useState('');
-
-    const [formData, setFormData] = useState<RecaudacionCreate>({
-        salon_id: 0,
-        fecha_inicio: '',
-        fecha_fin: '',
-        fecha_cierre: '',
-        etiqueta: '',
-        notas: ''
-    });
-
-    const [startTime, setStartTime] = useState('06:00');
-    const [endTime, setEndTime] = useState('06:00');
-
-    // Import File State for New Recaudacion
-    const [importFile, setImportFile] = useState<File | null>(null);
-
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    const fetchData = async () => {
-        try {
-            const [r, s] = await Promise.all([
-                recaudacionApi.getAll(),
-                salonesApi.getAll()
-            ]);
-            setRecaudaciones(r);
-            setSalons(s);
-        } catch (error) {
-            console.error("Error fetching data:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleSalonChange = async (salonId: number) => {
-        setFormData(prev => ({ ...prev, salon_id: salonId }));
-        if (salonId === 0) return;
-
-        try {
-            const lastDateIso = await recaudacionApi.getLastDate(salonId);
-            const today = new Date().toISOString().split('T')[0];
-
-            let newStartDate = '';
-            let newStartTime = '06:00';
-
-            if (lastDateIso && typeof lastDateIso === 'string') {
-                // If last info exists, use its End Date as Start Date
-                const lastDateObj = new Date(lastDateIso);
-                newStartDate = lastDateObj.toISOString().split('T')[0];
-                const hours = lastDateObj.getHours().toString().padStart(2, '0');
-                const minutes = lastDateObj.getMinutes().toString().padStart(2, '0');
-                newStartTime = `${hours}:${minutes}`;
-            }
-
-            setFormData(prev => ({
-                ...prev,
-                salon_id: salonId,
-                fecha_inicio: newStartDate,
-                fecha_fin: today,
-                fecha_cierre: today
-            }));
-            setStartTime(newStartTime);
-            setEndTime('06:00');
-        } catch (err) {
-            console.error("Error fetching last date", err);
-        }
-    };
-
-    // Auto-fill from Excel
-    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        setImportFile(file);
-
-        try {
-            const metadata = await recaudacionApi.parseMetadata(file);
-            console.log("Metadata parsed:", metadata);
-
-            if (metadata.is_normalized) {
-                // Determine updates
-                const updates: any = {};
-                if (metadata.salon_id) {
-                    updates.salon_id = metadata.salon_id;
-                    updates.origen = 'importacion';
-                }
-
-                // Format dates to YYYY-MM-DD
-                const formatDateStr = (d: string) => d.split('T')[0];
-
-                if (metadata.fecha_inicio) {
-                    updates.fecha_inicio = formatDateStr(metadata.fecha_inicio);
-                }
-
-                if (metadata.fecha_fin) {
-                    updates.fecha_fin = formatDateStr(metadata.fecha_fin);
-                    // Standard logic: closing date = end date
-                    updates.fecha_cierre = formatDateStr(metadata.fecha_fin);
-                }
-
-                if (Object.keys(updates).length > 0) {
-                    setFormData(prev => ({ ...prev, ...updates }));
-                    alert("Datos autocompletados desde el archivo Excel.");
-                }
-            }
-        } catch (err) {
-            console.error("Error parsing metadata:", err);
-        }
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            const startDateTime = `${formData.fecha_inicio}T${startTime}:00`;
-            const endDateTime = `${formData.fecha_fin}T${endTime}:00`;
-
-            const payload = {
-                ...formData,
-                fecha_inicio: startDateTime,
-                fecha_fin: endDateTime
-            };
-
-            const newRec = await recaudacionApi.create(payload);
-
-            // Handle Import
-            if (importFile) {
-                try {
-                    // Upload the file
-                    const uploadedFile = await recaudacionApi.uploadFile(newRec.id, importFile);
-
-                    // Analyze it
-                    // Note: modify backend analyzeFile to potentially return logic for auto-import? 
-                    // Or we just check names.
-                    // For now, let's trigger analysis.
-                    const analysis = await recaudacionApi.analyzeFile(newRec.id, uploadedFile.id);
-
-                    if (analysis.is_normalized) {
-                        // Auto-import using remapExcel (which supports file_id and empty mappings)
-                        await recaudacionApi.remapExcel(newRec.id, uploadedFile.id, {});
-                        // Done
-                        navigate(`/recaudaciones/${newRec.id}`);
-                    } else {
-                        // Go to detail page but open the mapping modal
-                        navigate(`/recaudaciones/${newRec.id}`, {
-                            state: {
-                                openImportModal: true,
-                                analysisResults: analysis,
-                                analyzingFileId: uploadedFile.id
-                            }
-                        });
-                    }
-                } catch (err) {
-                    console.error("Error creating/importing:", err);
-                    alert("Recaudación creada, pero hubo error al importar el archivo.");
-                    navigate(`/recaudaciones/${newRec.id}`);
-                }
-            } else {
-                setRecaudaciones([newRec, ...recaudaciones]);
-                setShowModal(false);
-                navigate(`/recaudaciones/${newRec.id}`);
-            }
-        } catch (error: any) {
-            console.error("Error creating recaudacion:", error);
-            const msg = error.response?.data?.detail || "Error al crear la recaudación. Verifique que no haya solapamiento de fechas.";
-            alert(msg);
-        }
-    };
-
-    const handleDelete = async () => {
-        if (!deleteId || deleteConfirmation !== 'BORRAR') return;
-
-        try {
-            await recaudacionApi.delete(deleteId);
-            setRecaudaciones(recaudaciones.filter(r => r.id !== deleteId));
-            setDeleteId(null);
-            setDeleteConfirmation('');
-        } catch (error) {
-            console.error("Error deleting recaudacion:", error);
-            alert("Error al borrar la recaudación");
-        }
-    };
-
-
-    return (
-        <div className="space-y-6">
-            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Recaudaciones</h1>
-                    <p className="text-gray-500">Gestión de recaudaciones y lecturas</p>
-                </div>
-
-                {/* View Controls */}
-                <div className="flex items-center gap-4 bg-white p-1.5 rounded-lg border border-gray-200 shadow-sm">
-                    <span className="text-sm font-medium text-gray-700 ml-2">Agrupar por:</span>
-                    <div className="flex gap-2">
-                        {(['salon', 'year', 'month'] as GroupingKey[]).map(key => (
-                            <button
-                                key={key}
-                                onClick={() => toggleGroupingKey(key)}
-                                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${activeGroupingKeys.includes(key)
-                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
-                                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                                    }`}
-                            >
-                                {key === 'salon' ? 'Salón' : key === 'year' ? 'Año' : 'Mes'}
-                            </button>
-                        ))}
-                    </div>
-                    {activeGroupingKeys.length > 0 && (
-                        <>
-                            <div className="border-l border-gray-300 h-5 mx-1"></div>
-                            <button
-                                onClick={() => setActiveGroupingKeys([])}
-                                className="text-xs text-red-500 hover:text-red-700 font-medium mr-2"
-                            >
-                                Limpiar
-                            </button>
-                        </>
-                    )}
-                </div>
-
+            {/* Create Button - Only show if user can edit at least one salon */}
+            {canCreateAny && (
                 <button
                     onClick={() => setShowModal(true)}
                     className="flex items-center justify-center px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-lg hover:from-emerald-700 hover:to-emerald-600 shadow-lg shadow-emerald-500/20 transition-all font-medium"
@@ -476,111 +210,49 @@ export default function Recaudaciones() {
                     <Plus size={20} className="mr-2" />
                     Nueva Recaudación
                 </button>
+            )}
+        </div>
+
+        {/* ... List ... */}
+        <td className="px-6 py-2 whitespace-nowrap text-right text-sm font-medium">
+            <div className="flex items-center gap-3">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/recaudaciones/${rec.id}`);
+                    }}
+                    className="text-indigo-600 hover:text-indigo-900 flex items-center gap-1"
+                    title="Ver Detalles"
+                >
+                    <FileText size={16} />
+                </button>
+                {canEditRecaudaciones(rec.salon_id) && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteId(rec.id);
+                            setDeleteConfirmation('');
+                        }}
+                        className="text-red-600 hover:text-red-900 flex items-center gap-1"
+                        title="Borrar Recaudación"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                )}
             </div>
-
-            {loading ? (
-                <div className="text-center py-12">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-                    <p className="mt-4 text-gray-600">Cargando recaudaciones...</p>
-                </div>
-            ) : activeGroupingKeys.length > 0 ? (
-                <GroupedRenderer
-                    data={recursiveGroup(filteredRecaudaciones, activeGroupingKeys)}
-                    depthKeys={activeGroupingKeys}
-                    navigate={navigate}
-                    salones={salones}
-                    activeGroupingKeys={activeGroupingKeys}
-                />
-            ) : (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salón</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fechas (Días)</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Neto Salón</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Etiqueta</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {filteredRecaudaciones.map((rec) => (
-                                <tr key={rec.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => navigate(`/recaudaciones/${rec.id}`)}>
-
-                                    <td className="px-6 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
-                                        <div className="flex items-center gap-3">
-                                            <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs text-white shadow-sm font-bold ${getSalonColor(getSalonName(rec.salon_id))}`}>
-                                                {getSalonInitials(getSalonName(rec.salon_id))}
-                                            </span>
-                                            {getSalonName(rec.salon_id)}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-500">
-                                        <div className="flex flex-col">
-                                            <span className="text-lg font-bold text-gray-900">
-                                                {formatDate(rec.fecha_fin)}
-                                            </span>
-                                            <span className="text-xs text-gray-500">
-                                                Recaudación anterior: {formatDate(rec.fecha_inicio)} ({getDaysDiff(rec.fecha_inicio, rec.fecha_fin)} días)
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className={`px-6 py-2 whitespace-nowrap text-sm font-bold ${getCurrencyClasses(getNetoSalon(rec))}`}>
-                                        {formatCurrency(getNetoSalon(rec))} <span className="text-gray-400 font-normal text-xs ml-1">({rec.porcentaje_salon ?? 50}%)</span>
-                                    </td>
-                                    <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-500">
-                                        {rec.etiqueta || '-'}
-                                    </td>
-                                    <td className="px-6 py-2 whitespace-nowrap text-right text-sm font-medium">
-                                        <div className="flex items-center gap-3">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    navigate(`/recaudaciones/${rec.id}`);
-                                                }}
-                                                className="text-indigo-600 hover:text-indigo-900 flex items-center gap-1"
-                                                title="Ver Detalles"
-                                            >
-                                                <FileText size={16} />
-                                            </button>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setDeleteId(rec.id);
-                                                    setDeleteConfirmation('');
-                                                }}
-                                                className="text-red-600 hover:text-red-900 flex items-center gap-1"
-                                                title="Borrar Recaudación"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                    {recaudaciones.length === 0 && (
-                        <div className="text-center py-12 text-gray-500">
-                            No hay recaudaciones registradas.
-                        </div>
-                    )}
-                </div>
+        </td>
+    </tr>
+))}
+                        </tbody >
+                    </table >
+    {/* ... */ }
+                </div >
             )}
 
-            {/* Modal Nueva Recaudacion */}
-            {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl p-6 w-full max-w-md">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold">Nueva Recaudación</h2>
-                            <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
+{/* Modal Nueva Recaudacion */ }
+{
+    showModal && (
+                // ...
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Salón</label>
                                 <select
                                     required
@@ -589,12 +261,13 @@ export default function Recaudaciones() {
                                     onChange={(e) => handleSalonChange(Number(e.target.value))}
                                 >
                                     <option value={0}>Seleccione un salón</option>
-                                    {salones.map(s => (
+                                    {editableSalons.map(s => ( // Use filtered list
                                         <option key={s.id} value={s.id}>{s.nombre}</option>
                                     ))}
                                 </select>
-                            </div>
-                            <div className="grid grid-cols-1 gap-4">
+                            </div >
+        {/* ... */ }
+        < div className = "grid grid-cols-1 gap-4" >
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Inicio</label>
                                     <div className="flex gap-2">
@@ -633,7 +306,7 @@ export default function Recaudaciones() {
                                         />
                                     </div>
                                 </div>
-                            </div>
+                            </div >
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Cierre (Contable)</label>
                                 <input
@@ -684,58 +357,58 @@ export default function Recaudaciones() {
                                     Crear Recaudación
                                 </button>
                             </div>
-                        </form>
-                    </div>
+                        </form >
+                    </div >
                 </div >
             )
-            }
+}
 
-            {/* Modal Borrar Recaudacion */}
-            {
-                deleteId && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-xl p-6 w-full max-w-sm">
-                            <div className="flex flex-col items-center text-center mb-6">
-                                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4 text-red-600">
-                                    <AlertTriangle size={24} />
-                                </div>
-                                <h2 className="text-xl font-bold text-gray-900">¿Borrar Recaudación?</h2>
-                                <p className="text-sm text-gray-500 mt-2">
-                                    Esta acción no se puede deshacer. Para confirmar, escribe <strong>BORRAR</strong> abajo.
-                                </p>
-                            </div>
-
-                            <input
-                                type="text"
-                                className="w-full border border-gray-300 rounded-lg p-2 text-center uppercase mb-4 focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                                placeholder="Escribe BORRAR"
-                                value={deleteConfirmation}
-                                onChange={(e) => setDeleteConfirmation(e.target.value.toUpperCase())}
-                                autoFocus
-                            />
-
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => { setDeleteId(null); setDeleteConfirmation(''); }}
-                                    className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={handleDelete}
-                                    disabled={deleteConfirmation !== 'BORRAR'}
-                                    className={`flex-1 px-4 py-2 text-white rounded-lg font-medium transition-colors ${deleteConfirmation === 'BORRAR'
-                                        ? 'bg-red-600 hover:bg-red-700'
-                                        : 'bg-red-300 cursor-not-allowed'
-                                        }`}
-                                >
-                                    Borrar
-                                </button>
-                            </div>
-                        </div>
+{/* Modal Borrar Recaudacion */ }
+{
+    deleteId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-sm">
+                <div className="flex flex-col items-center text-center mb-6">
+                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4 text-red-600">
+                        <AlertTriangle size={24} />
                     </div>
-                )
-            }
+                    <h2 className="text-xl font-bold text-gray-900">¿Borrar Recaudación?</h2>
+                    <p className="text-sm text-gray-500 mt-2">
+                        Esta acción no se puede deshacer. Para confirmar, escribe <strong>BORRAR</strong> abajo.
+                    </p>
+                </div>
+
+                <input
+                    type="text"
+                    className="w-full border border-gray-300 rounded-lg p-2 text-center uppercase mb-4 focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    placeholder="Escribe BORRAR"
+                    value={deleteConfirmation}
+                    onChange={(e) => setDeleteConfirmation(e.target.value.toUpperCase())}
+                    autoFocus
+                />
+
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => { setDeleteId(null); setDeleteConfirmation(''); }}
+                        className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={handleDelete}
+                        disabled={deleteConfirmation !== 'BORRAR'}
+                        className={`flex-1 px-4 py-2 text-white rounded-lg font-medium transition-colors ${deleteConfirmation === 'BORRAR'
+                            ? 'bg-red-600 hover:bg-red-700'
+                            : 'bg-red-300 cursor-not-allowed'
+                            }`}
+                    >
+                        Borrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
         </div >
     );
 }

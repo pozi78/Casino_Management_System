@@ -65,6 +65,12 @@ class UsuarioSalon(Base):
     salon_id = Column(Integer, ForeignKey("salon.id"), primary_key=True)
     puede_ver = Column(Boolean, default=True)
     puede_editar = Column(Boolean, default=False)
+    
+    # New Granular Permissions
+    ver_dashboard = Column(Boolean, default=False)
+    ver_recaudaciones = Column(Boolean, default=False)
+    editar_recaudaciones = Column(Boolean, default=False)
+    ver_historico = Column(Boolean, default=False)
 
     usuario = relationship("Usuario", back_populates="salones_asignados")
     salon = relationship("Salon", back_populates="usuarios_asignados")
