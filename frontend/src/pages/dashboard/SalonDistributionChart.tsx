@@ -40,7 +40,7 @@ export default function SalonDistributionChart({ data }: Props) {
                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                             ))}
                         </Pie>
-                        <Tooltip formatter={(value: number) => [`€${value.toLocaleString()}`, 'Ingresos']} />
+                        <Tooltip formatter={(value: number) => [`${value.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`, 'Ingresos']} />
                         <Legend layout="horizontal" verticalAlign="bottom" align="center" />
                     </PieChart>
                 </ResponsiveContainer>

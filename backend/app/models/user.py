@@ -42,6 +42,7 @@ class Usuario(Base):
 
     # Mandatory fields
     telefono = Column(String)
+    telefono_fijo = Column(String)
     telegram_user = Column(String)
     cargo = Column(String)
     departamento = Column(String)

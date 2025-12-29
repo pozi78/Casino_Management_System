@@ -5,7 +5,12 @@ import type { User, UserCreate, UserUpdate } from '../api/users';
 import Modal from '../components/Modal';
 import UserForm from '../components/UserForm';
 
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+
 export default function Usuarios() {
+    const { user } = useAuth();
+    const navigate = useNavigate();
     const [users, setUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -15,8 +20,16 @@ export default function Usuarios() {
     const [editingUser, setEditingUser] = useState<User | undefined>(undefined);
 
     useEffect(() => {
+        const hasUserManagementAccess = user?.roles?.some(r =>
+            ['SUPERADMIN', 'ADMIN'].includes(r.codigo)
+        );
+
+        if (!hasUserManagementAccess) {
+            navigate('/configuracion');
+            return;
+        }
         fetchUsers();
-    }, []);
+    }, [user, navigate]);
 
     const fetchUsers = async () => {
         setIsLoading(true);

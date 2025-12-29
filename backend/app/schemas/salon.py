@@ -21,6 +21,7 @@ class SalonInDBBase(SalonBase):
     id: int
     creado_en: datetime
     actualizado_en: datetime
+    deleted_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

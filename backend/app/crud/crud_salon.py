@@ -1,4 +1,5 @@
 from typing import List, Optional
+from sqlalchemy import func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.salon import Salon
@@ -6,13 +7,16 @@ from app.schemas.salon import SalonCreate, SalonUpdate
 
 class CRUDSalon:
     async def get(self, db: AsyncSession, id: int) -> Optional[Salon]:
-        result = await db.execute(select(Salon).where(Salon.id == id))
+        result = await db.execute(select(Salon).where(Salon.id == id, Salon.deleted_at.is_(None)))
         return result.scalars().first()
 
     async def get_multi(
-        self, db: AsyncSession, skip: int = 0, limit: int = 100
+        self, db: AsyncSession, skip: int = 0, limit: int = 100, include_deleted: bool = False
     ) -> List[Salon]:
-        result = await db.execute(select(Salon).order_by(Salon.id).offset(skip).limit(limit))
+        stmt = select(Salon)
+        if not include_deleted:
+            stmt = stmt.where(Salon.deleted_at.is_(None))
+        result = await db.execute(stmt.order_by(Salon.id).offset(skip).limit(limit))
         return result.scalars().all()
 
     async def create(self, db: AsyncSession, *, obj_in: SalonCreate) -> Salon:
@@ -53,8 +57,21 @@ class CRUDSalon:
         result = await db.execute(select(Salon).where(Salon.id == id))
         obj = result.scalars().first()
         if obj:
-            await db.delete(obj)
+            obj.deleted_at = func.now()
+            obj.activo = False 
+            db.add(obj)
             await db.commit()
+            await db.refresh(obj)
+        return obj
+
+    async def restore(self, db: AsyncSession, *, id: int) -> Optional[Salon]:
+        result = await db.execute(select(Salon).where(Salon.id == id))
+        obj = result.scalars().first()
+        if obj:
+            obj.deleted_at = None
+            db.add(obj)
+            await db.commit()
+            await db.refresh(obj)
         return obj
 
 salon = CRUDSalon()

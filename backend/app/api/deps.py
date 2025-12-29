@@ -33,15 +33,23 @@ async def get_current_user(
             detail="Could not validate credentials",
         )
     
-    # Eagerly load assigned salons and their salon details
+    # Eagerly load assigned salons and their salon details, excluding deleted ones
     result = await db.execute(
         select(Usuario)
         .options(
-            joinedload(Usuario.salones_asignados).joinedload(UsuarioSalon.salon)
+            joinedload(Usuario.salones_asignados)
+            .joinedload(UsuarioSalon.salon)
         )
         .where(Usuario.id == int(token_data.sub))
     )
     user = result.scalars().unique().first()
+    
+    if user:
+        # Manually filter deleted salons from assignments if any leaked in via joinedload (since joinedload filter is tricky in 1.4 async)
+        # Actually, it's better to just ensure we don't return them.
+        # However, SQLAlchemy joinedload might not filter the collection easily without loader options.
+        # Let's try to filter the collection in python after loading to be safe and simple.
+        user.salones_asignados = [ua for ua in user.salones_asignados if ua.salon and ua.salon.deleted_at is None]
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

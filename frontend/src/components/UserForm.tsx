@@ -148,12 +148,12 @@ export default function UserForm({ initialData, onSubmit, onCancel }: UserFormPr
 
     // Permission Columns Definition
     const permissionColumns = [
-        { key: 'puede_ver', label: 'Ver' },
-        { key: 'puede_editar', label: 'Editar' },
-        { key: 'ver_dashboard', label: 'Dashboard' },
-        { key: 'ver_recaudaciones', label: 'Recaudaciones' },
-        { key: 'editar_recaudaciones', label: 'Edit. Recau' },
-        { key: 'ver_historico', label: 'Histórico' },
+        { key: 'puede_ver', label: 'Ver', description: 'Permite ver el salón en los listados generales' },
+        { key: 'puede_editar', label: 'Editar', description: 'Permite editar la información básica del salón' },
+        { key: 'ver_dashboard', label: 'Dashboard', description: 'Permite visualizar los gráficos y estadísticas del Dashboard para este salón' },
+        { key: 'ver_recaudaciones', label: 'Recaudaciones', description: 'Permite ver el listado de recaudaciones de este salón' },
+        { key: 'editar_recaudaciones', label: 'Edit. Recau', description: 'Permite crear, modificar y eliminar recaudaciones (incluye subir ficheros)' },
+        { key: 'ver_historico', label: 'Histórico', description: 'Permite consultar el histórico de movimientos y auditoría' },
     ];
 
     return (
@@ -336,7 +336,13 @@ export default function UserForm({ initialData, onSubmit, onCancel }: UserFormPr
                                     <tr>
                                         <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Salón</th>
                                         {permissionColumns.map(col => (
-                                            <th key={col.key} className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">{col.label}</th>
+                                            <th
+                                                key={col.key}
+                                                className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-help"
+                                                title={col.description}
+                                            >
+                                                {col.label}
+                                            </th>
                                         ))}
                                         <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
                                     </tr>
@@ -354,7 +360,11 @@ export default function UserForm({ initialData, onSubmit, onCancel }: UserFormPr
                                                     </div>
                                                 </td>
                                                 {permissionColumns.map(col => (
-                                                    <td key={col.key} className="px-4 py-4 whitespace-nowrap text-center">
+                                                    <td
+                                                        key={col.key}
+                                                        className="px-4 py-4 whitespace-nowrap text-center"
+                                                        title={col.description}
+                                                    >
                                                         <input
                                                             type="checkbox"
                                                             className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer"

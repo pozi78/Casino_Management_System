@@ -18,11 +18,14 @@ interface UsuarioSalon {
     salon: Salon;
 }
 
+import type { Role } from '../api/roles';
+
 interface User {
     id: number;
     username: string;
     email: string;
     nombre: string;
+    roles: Role[];
     activo: boolean;
     salones_asignados: UsuarioSalon[];
 }

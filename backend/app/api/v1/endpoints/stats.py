@@ -34,7 +34,7 @@ async def get_filters_metadata(
     # Logic: Show currently active machines AND machines that had activity in the selected years (historical).
     
     # 1. Base: Active machines
-    q_machines = select(Maquina.id, Maquina.nombre, Maquina.salon_id).where(Maquina.activo == True)
+    q_machines = select(Maquina.id, Maquina.nombre, Maquina.salon_id).join(Salon).where(Maquina.activo == True, Maquina.eliminada == False, Salon.deleted_at.is_(None))
     
     if salon_ids:
         q_machines = q_machines.where(Maquina.salon_id.in_(salon_ids))
@@ -146,7 +146,7 @@ async def get_dashboard_stats(
     # 1. Salones Operativos & Usuarios: Ignore time filters? usually yes, "current state".
     # 2. Machines Active: Only apply salon/machine filters.
     
-    query_salons = select(func.count(Salon.id)).where(Salon.activo == True)
+    query_salons = select(func.count(Salon.id)).where(Salon.activo == True, Salon.deleted_at.is_(None))
     if salon_ids:
         query_salons = query_salons.where(Salon.id.in_(salon_ids))
     count_salons = await db.scalar(query_salons) or 0
@@ -154,7 +154,7 @@ async def get_dashboard_stats(
     query_users = select(func.count(Usuario.id)).where(Usuario.activo == True)
     count_users = await db.scalar(query_users) or 0
     
-    query_machines = select(func.count(Maquina.id)).where(Maquina.activo == True)
+    query_machines = select(func.count(Maquina.id)).join(Salon).where(Maquina.activo == True, Maquina.eliminada == False, Salon.deleted_at.is_(None))
     if salon_ids:
         query_machines = query_machines.where(Maquina.salon_id.in_(salon_ids))
     if machine_ids:
@@ -430,3 +430,176 @@ async def get_top_machines(
         })
         
     return top_list
+
+@router.get("/comparative")
+async def get_comparative_stats(
+    db: AsyncSession = Depends(get_db),
+    salon_ids: Optional[List[int]] = Query(None),
+    years: Optional[List[int]] = Query(None),
+    months: Optional[List[int]] = Query(None),
+    machine_ids: Optional[List[int]] = Query(None),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Get comparative statistics per salon: revenue, net, and machine count.
+    """
+    from app.models.recaudacion import RecaudacionMaquina
+    
+    # 1. Get Revenue and Net per Salon
+    # We use a similar logic to top-machines but grouped by Salon
+    q = select(RecaudacionMaquina).join(Recaudacion).options(
+        selectinload(RecaudacionMaquina.recaudacion).selectinload(Recaudacion.salon),
+        selectinload(RecaudacionMaquina.maquina).selectinload(Maquina.puestos)
+    )
+    
+    q = apply_common_filters(q, RecaudacionMaquina, salon_ids, years, months)
+    
+    if machine_ids:
+        q = q.where(RecaudacionMaquina.maquina_id.in_(machine_ids))
+        
+    result = await db.execute(q)
+    detalles = result.scalars().all()
+    
+    salon_stats = defaultdict(lambda: {"drop": 0.0, "pm": 0.0, "win": 0.0, "neto": 0.0, "tasas": 0.0, "depositos": 0.0, "otros_conceptos": 0.0, "machines": set(), "puestos": 0.0, "recaudacion_ids": set()})
+    monthly_breakdown = defaultdict(lambda: defaultdict(float))
+    monthly_depositos = defaultdict(lambda: defaultdict(float))
+    monthly_otros = defaultdict(lambda: defaultdict(float))
+    recaudacion_ids_processed = set()
+    
+    for d in detalles:
+        if not d.recaudacion or not d.recaudacion.salon:
+            continue
+            
+        salon_name = d.recaudacion.salon.nombre
+        month = d.recaudacion.fecha_fin.month
+        pct_salon = float(d.recaudacion.porcentaje_salon or 50) / 100.0
+        
+        # Machine-level metrics
+        bruto = (d.retirada_efectivo or 0) + (d.cajon or 0) - (d.pago_manual or 0) + (d.ajuste or 0)
+        
+        val_drop = (float(d.retirada_efectivo or 0) + float(d.cajon or 0)) * pct_salon
+        val_pm = float(d.pago_manual or 0) * pct_salon
+        val_win = float(bruto) * pct_salon
+        
+        salon_stats[salon_name]["drop"] += val_drop
+        salon_stats[salon_name]["pm"] += val_pm
+        salon_stats[salon_name]["win"] += val_win
+        salon_stats[salon_name]["win"] += val_win
+        salon_stats[salon_name]["machines"].add(d.maquina_id)
+
+        # Calculate Puestos for this entry (Machine-Period)
+        n_puestos = 1
+        if d.puesto_id:
+             n_puestos = 1
+        elif d.maquina and d.maquina.es_multipuesto:
+             # If it's a multipuesto machine entry without specific puesto_id, it counts for all its positions?
+             # Assuming RecaudacionMaquina entry for "Master" represents the whole machine if no puesto_id.
+             # Use the count of active puestos defined in the machine.
+             active_puestos = len([p for p in d.maquina.puestos if not p.eliminado and p.activo]) if d.maquina.puestos else 0
+             # Fallback if no puestos defined but marked as multipuesto: query group or default to 1? 
+             # Let's default to max(1, active_puestos)
+             n_puestos = max(1, active_puestos)
+        else:
+             n_puestos = 1
+        
+        salon_stats[salon_name]["puestos"] += n_puestos
+        salon_stats[salon_name]["recaudacion_ids"].add(d.recaudacion_id)
+
+        # Handle Taxes and Neto:
+        # If we are filtering by specific machines, we use machine-level taxes.
+        # If we are NOT filtering (Salon view), we use Global taxes and Adjustments from cabecera.
+        if machine_ids:
+            tasa = (d.tasa_estimada or 0) + (d.tasa_diferencia or 0)
+            val_tasas = float(tasa) * pct_salon
+            val_neto = (float(bruto) - float(tasa)) * pct_salon
+            
+            salon_stats[salon_name]["tasas"] += val_tasas
+            salon_stats[salon_name]["neto"] += val_neto
+            monthly_breakdown[month][salon_name] += val_neto
+        else:
+            # Salon view: Add global concepts once per collection
+            if d.recaudacion_id not in recaudacion_ids_processed:
+                recaudacion_ids_processed.add(d.recaudacion_id)
+                r = d.recaudacion
+                
+                # Global Taxes
+                val_total_tasas = float(r.total_tasas or 0) * pct_salon
+                # Deposits and Others
+                val_depositos = float(r.depositos or 0) * pct_salon
+                val_otros = float(r.otros_conceptos or 0) * pct_salon
+                val_adj = val_depositos + val_otros
+                
+                salon_stats[salon_name]["depositos"] += val_depositos
+                salon_stats[salon_name]["otros_conceptos"] += val_otros
+                
+                monthly_depositos[month][salon_name] += val_depositos
+                monthly_otros[month][salon_name] += val_otros
+                
+                salon_stats[salon_name]["tasas"] += val_total_tasas
+                # Neto = sum(win) - total_tasas + adj
+                # Since 'neto' will be summed per machine val_win later, 
+                # we initialize it with the global adjustments here (once per collection)
+                # and then add each machine's val_win in every iteration.
+                salon_stats[salon_name]["neto"] += val_adj - val_total_tasas
+                monthly_breakdown[month][salon_name] += val_adj - val_total_tasas
+
+            # Add machine's contribution to WIN (which is part of NETO before taxes/adjustments)
+            salon_stats[salon_name]["neto"] += val_win
+            monthly_breakdown[month][salon_name] += val_win
+        
+        if machine_ids:
+            # For monthly breakdown in machine view, we already added val_neto above? No, let's fix it.
+            # I'll move the monthly_breakdown update inside the if/else to be sure.
+            pass
+
+    # 2. Format result
+    summary_data = []
+    for name, stats in salon_stats.items():
+        # machines_count = len(stats["machines"]) # Old logic: distinct machines
+        total_accumulated_puestos = stats["puestos"] # Accumulated sum
+        num_periods = len(stats["recaudacion_ids"]) # Distinct collections
+        
+        avg_puestos = total_accumulated_puestos / num_periods if num_periods > 0 else 0
+        
+        summary_data.append({
+            "name": name,
+            "drop": round(stats["drop"], 2),
+            "pm": round(stats["pm"], 2),
+            "win": round(stats["win"], 2),
+            "neto": round(stats["neto"], 2),
+            "tasas": round(stats["tasas"], 2),
+            "depositos": round(stats["depositos"], 2),
+            "otros_conceptos": round(stats["otros_conceptos"], 2),
+            "machines": round(avg_puestos, 1), # Return Average Puestos count
+            "avg_per_machine": round(stats["neto"] / avg_puestos, 2) if avg_puestos > 0 else 0
+        })
+    summary_data.sort(key=lambda x: x["win"], reverse=True)
+
+    formatted_monthly = {}
+    formatted_depositos = {}
+    formatted_otros = {}
+    
+    for month in sorted(monthly_breakdown.keys()):
+        m_str = str(month)
+        
+        # Neto/WIN
+        month_list = [{"name": s_name, "value": round(s_rev, 2)} for s_name, s_rev in monthly_breakdown[month].items()]
+        month_list.sort(key=lambda x: x["value"], reverse=True)
+        formatted_monthly[m_str] = month_list
+        
+        # Depositos
+        dep_list = [{"name": s_name, "value": round(s_val, 2)} for s_name, s_val in monthly_depositos[month].items()]
+        dep_list.sort(key=lambda x: x["value"], reverse=True)
+        formatted_depositos[m_str] = dep_list
+        
+        # Otros
+        otr_list = [{"name": s_name, "value": round(s_val, 2)} for s_name, s_val in monthly_otros[month].items()]
+        otr_list.sort(key=lambda x: x["value"], reverse=True)
+        formatted_otros[m_str] = otr_list
+
+    return {
+        "summary": summary_data,
+        "monthly": formatted_monthly,
+        "monthly_depositos": formatted_depositos,
+        "monthly_otros": formatted_otros
+    }

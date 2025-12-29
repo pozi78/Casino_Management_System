@@ -5,6 +5,7 @@ export interface Salon {
     nombre: string;
     direccion?: string;
     activo: boolean;
+    deleted_at?: string;
 }
 
 export interface SalonCreate {
@@ -20,8 +21,10 @@ export interface SalonUpdate {
 }
 
 export const salonesApi = {
-    getAll: async () => {
-        const response = await api.get<Salon[]>('/salones/');
+    getAll: async (showDeleted: boolean = false) => {
+        const response = await api.get<Salon[]>('/salones/', {
+            params: { show_deleted: showDeleted }
+        });
         return response.data;
     },
 
@@ -42,6 +45,11 @@ export const salonesApi = {
 
     delete: async (id: number) => {
         const response = await api.delete<Salon>(`/salones/${id}`);
+        return response.data;
+    },
+
+    restore: async (id: number) => {
+        const response = await api.post<Salon>(`/salones/${id}/restore`);
         return response.data;
     }
 };

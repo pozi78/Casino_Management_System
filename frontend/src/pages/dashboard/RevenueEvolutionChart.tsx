@@ -25,7 +25,6 @@ export default function RevenueEvolutionChart({ data }: Props) {
             });
         });
         const sortedKeys = Array.from(allKeys).sort((a, b) => parseInt(a) - parseInt(b));
-        console.log("RevenueChart Keys:", sortedKeys);
         return sortedKeys;
     };
 
@@ -75,67 +74,74 @@ export default function RevenueEvolutionChart({ data }: Props) {
                 </div>
             </div>
 
-            <div className="h-[400px] w-full" style={{ minHeight: '400px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart
-                        key={keys.join(',')} // FORCE REMOUNT on keys change to ensure stacking order is recalculated strictly
-                        data={data}
-                        margin={{
-                            top: 20,
-                            right: 20,
-                            bottom: 20,
-                            left: 20,
-                        }}
-                    >
-                        <CartesianGrid stroke="#f3f4f6" strokeDasharray="3 3" vertical={false} />
-                        <XAxis
-                            dataKey="name"
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fill: '#6b7280' }}
-                            dy={10}
-                        />
-                        <YAxis
-                            axisLine={false}
-                            tickLine={false}
-                            tickFormatter={(value) => `€${value.toLocaleString()}`}
-                            tick={{ fill: '#6b7280' }}
-                        />
-                        <Tooltip
-                            formatter={(value: number, name: string) => [`€${value.toLocaleString()}`, name]}
-                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                        />
-                        <Legend wrapperStyle={{ paddingTop: '20px' }} />
-
-                        {/* Generate Bars for each year key found in data */}
-                        {keys.map((key) => (
-                            <Bar
-                                key={key}
-                                dataKey={key}
-                                name={key}
-                                stackId="a"
-                                fill={getYearColor(key)}
-                                radius={[4, 4, 0, 0]}
-                                maxBarSize={50}
+            <div className="h-[400px] w-full relative" style={{ minHeight: '400px' }}>
+                <div className="absolute inset-0">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={300}>
+                        <ComposedChart
+                            key={keys.join(',')} // FORCE REMOUNT on keys change to ensure stacking order is recalculated strictly
+                            data={data}
+                            margin={{
+                                top: 20,
+                                right: 20,
+                                bottom: 20,
+                                left: 20,
+                            }}
+                        >
+                            <CartesianGrid stroke="#f3f4f6" strokeDasharray="3 3" vertical={false} />
+                            <XAxis
+                                dataKey="name"
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fill: '#6b7280' }}
+                                dy={10}
                             />
-                        ))}
-
-                        {/* Lines for each year */}
-                        {keys.map((key) => (
-                            <Line
-                                key={`line-${key}`}
-                                type="monotone"
-                                dataKey={key}
-                                name={`Tendencia ${key}`}
-                                stroke={adjustBrightness(getYearColor(key), -60)} // Darken by 60
-                                strokeWidth={3}
-                                dot={{ r: 4, fill: adjustBrightness(getYearColor(key), -60), strokeWidth: 0 }}
-                                activeDot={{ r: 6 }}
-                                stackId="a"
+                            <YAxis
+                                axisLine={false}
+                                tickLine={false}
+                                tickFormatter={(value: number) => {
+                                    return value.toLocaleString('es-ES', { maximumFractionDigits: 0 }) + ' €';
+                                }}
+                                tick={{ fill: '#6b7280' }}
                             />
-                        ))}
-                    </ComposedChart>
-                </ResponsiveContainer>
+                            <Tooltip
+                                formatter={(value: number, name: string) => [value.toLocaleString('es-ES', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                }) + ' €', name]}
+                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                            />
+                            <Legend wrapperStyle={{ paddingTop: '20px' }} />
+
+                            {/* Generate Bars for each year key found in data */}
+                            {keys.map((key) => (
+                                <Bar
+                                    key={key}
+                                    dataKey={key}
+                                    name={key}
+                                    stackId="a"
+                                    fill={getYearColor(key)}
+                                    radius={[4, 4, 0, 0]}
+                                    maxBarSize={50}
+                                />
+                            ))}
+
+                            {/* Lines for each year */}
+                            {keys.map((key) => (
+                                <Line
+                                    key={`line-${key}`}
+                                    type="monotone"
+                                    dataKey={key}
+                                    name={`Tendencia ${key}`}
+                                    stroke={adjustBrightness(getYearColor(key), -60)} // Darken by 60
+                                    strokeWidth={3}
+                                    dot={{ r: 4, fill: adjustBrightness(getYearColor(key), -60), strokeWidth: 0 }}
+                                    activeDot={{ r: 6 }}
+                                    stackId="a"
+                                />
+                            ))}
+                        </ComposedChart>
+                    </ResponsiveContainer>
+                </div>
             </div>
         </div>
     );

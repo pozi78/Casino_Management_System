@@ -11,6 +11,7 @@ class Salon(Base):
     activo = Column(Boolean, default=True)
     creado_en = Column(DateTime, default=func.now())
     actualizado_en = Column(DateTime, default=func.now(), onupdate=func.now())
+    deleted_at = Column(DateTime, nullable=True)
 
     # Relationships
     maquinas = relationship("Maquina", back_populates="salon")

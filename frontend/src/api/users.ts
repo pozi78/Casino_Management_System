@@ -22,6 +22,7 @@ export interface User {
 
     // New fields
     telefono?: string;
+    telefono_fijo?: string;
     telegram_user?: string;
     cargo?: string;
     departamento?: string;
@@ -45,6 +46,7 @@ export interface UserCreate {
 
     // Mandatory
     telefono: string;
+    telefono_fijo?: string;
     telegram_user: string;
     cargo: string;
     departamento: string;
@@ -67,6 +69,7 @@ export interface UserUpdate {
     activo?: boolean;
 
     telefono?: string;
+    telefono_fijo?: string;
     telegram_user?: string;
     cargo?: string;
     departamento?: string;

@@ -39,13 +39,13 @@ export default function TopMachinesTable({ machines = [] }: Props) {
                                     {item.name}
                                 </td>
                                 <td className="py-3 text-sm text-gray-500 text-right">
-                                    {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(item.bruto)}
+                                    {item.bruto.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                                 </td>
                                 <td className="py-3 text-sm text-red-500 text-right">
-                                    -{new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(item.tasa)}
+                                    -{item.tasa.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                                 </td>
                                 <td className="py-3 text-sm text-gray-900 text-right font-bold">
-                                    {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(item.neto)}
+                                    {item.neto.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                                 </td>
                             </tr>
                         ))}

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useSalonFilter } from '../context/SalonFilterContext';
 import { useAuth } from '../context/AuthContext';
+import { usePermission } from '../hooks/usePermission';
 import { SlotMachineIcon } from './Icons';
 
 interface SidebarProps {
@@ -43,14 +44,25 @@ export default function Sidebar({ isOpen, toggleSidebar }: SidebarProps) {
         };
     }, []);
 
+    const { canViewDashboard, canViewRecaudaciones } = usePermission();
+
+    const hasDashboardAccess = availableSalons.some(s => canViewDashboard(s.id));
+    const hasRecaudacionesAccess = availableSalons.some(s => canViewRecaudaciones(s.id));
+    // For Machines/Salons, we assume access if they have any salon assigned.
+    const hasBasicAccess = availableSalons.length > 0;
+
+    const hasUserManagementAccess = user?.roles?.some(r =>
+        ['SUPERADMIN', 'ADMIN'].includes(r.codigo)
+    );
+
     const navItems = [
-        { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-        { icon: MapPin, label: 'Salones', path: '/salones' },
-        { icon: SlotMachineIcon, label: 'Máquinas', path: '/maquinas' },
-        { icon: FileText, label: 'Recaudaciones', path: '/recaudaciones' },
-        { icon: Users, label: 'Usuarios', path: '/usuarios' },
-        { icon: Settings, label: 'Configuración', path: '/configuracion' },
-    ];
+        { icon: LayoutDashboard, label: 'Dashboard', path: '/', visible: hasDashboardAccess },
+        { icon: MapPin, label: 'Salones', path: '/salones', visible: hasBasicAccess },
+        { icon: SlotMachineIcon, label: 'Máquinas', path: '/maquinas', visible: hasBasicAccess },
+        { icon: FileText, label: 'Recaudaciones', path: '/recaudaciones', visible: hasRecaudacionesAccess }, // Filtered
+        { icon: Users, label: 'Usuarios', path: '/usuarios', visible: hasUserManagementAccess }, // Only Admins
+        { icon: Settings, label: 'Configuración', path: '/configuracion', visible: true },
+    ].filter(item => item.visible);
 
     return (
         <aside

@@ -139,12 +139,12 @@ async def parse_recaudacion_metadata(
             print(f"DEBUG: Final extracted salon name: '{salon_name}'")
             
             # Find Salon by Name (Try exact first, then contained?)
-            stmt = select(Salon).where(Salon.nombre.ilike(salon_name))
+            stmt = select(Salon).where(Salon.nombre.ilike(salon_name), Salon.deleted_at.is_(None))
             salon = (await db.execute(stmt)).scalars().first()
             
             if not salon:
                 print(f"DEBUG: Exact match failed for '{salon_name}'. Trying containment.")
-                stmt = select(Salon).where(Salon.activo == True)
+                stmt = select(Salon).where(Salon.activo == True, Salon.deleted_at.is_(None))
                 all_salons = (await db.execute(stmt)).scalars().all()
                 for s in all_salons:
                     # Robust fuzzy match

@@ -98,5 +98,20 @@ export const statsApi = {
 
         const response = await api.get<{ name: string, value: number }[]>(url);
         return response.data;
+    },
+
+    async getComparativeStats(filters: DashboardFilters) {
+        let url = '/stats/comparative';
+        const params = new URLSearchParams();
+
+        if (filters.salon_ids) filters.salon_ids.forEach(id => params.append('salon_ids', id.toString()));
+        if (filters.years) filters.years.forEach(id => params.append('years', id.toString()));
+        if (filters.months) filters.months.forEach(id => params.append('months', id.toString()));
+        if (filters.machine_ids) filters.machine_ids.forEach(id => params.append('machine_ids', id.toString()));
+
+        if (params.toString()) url += `?${params.toString()}`;
+
+        const response = await api.get<{ summary: any[], monthly: { [key: string]: any[] } }>(url);
+        return response.data;
     }
 };

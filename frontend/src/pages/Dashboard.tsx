@@ -1,15 +1,13 @@
 import {
     DollarSign,
-    Users,
     MapPin,
     Activity,
-    TrendingUp,
     ArrowUpRight
 } from 'lucide-react';
 
 import type { LucideIcon } from 'lucide-react';
 import RevenueEvolutionChart from './dashboard/RevenueEvolutionChart';
-import SalonDistributionChart from './dashboard/SalonDistributionChart';
+import ComparativeAnalytics from './dashboard/ComparativeAnalytics';
 import TopMachinesTable from './dashboard/TopMachinesTable';
 
 interface StatCardProps {
@@ -65,7 +63,7 @@ export default function Dashboard() {
 
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [revenueEvolution, setRevenueEvolution] = useState<any[]>([]);
-    const [revenueBySalon, setRevenueBySalon] = useState<any[]>([]);
+    const [comparativeStats, setComparativeStats] = useState<{ summary: any[], monthly: { [key: string]: any[] } }>({ summary: [], monthly: {} });
     const [topMachines, setTopMachines] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -115,7 +113,7 @@ export default function Dashboard() {
                     maquinas_activas: 0
                 });
                 setRevenueEvolution([]);
-                setRevenueBySalon([]);
+                setComparativeStats({ summary: [], monthly: {} });
                 setTopMachines([]);
                 setIsLoading(false);
                 return;
@@ -128,15 +126,13 @@ export default function Dashboard() {
             // - If selectedSalonIds is NOT empty -> use intersection with allowed.
             // - If selectedSalonIds IS empty -> use ALL AVAILABLE salons intersected with allowed.
 
-            let effectiveSalonIds = selectedSalonIds.length > 0
-                ? allowedSalonIds
-                : availableSalons.map(s => s.id).filter(id => canViewDashboard(id));
+            let effectiveSalonIds = allowedSalonIds;
 
-            if (effectiveSalonIds.length === 0) {
-                // Nothing to show
+            if (selectedSalonIds.length === 0 || effectiveSalonIds.length === 0) {
+                // Nothing to show if no salons are selected or allowed
                 setStats({ ingresos_totales: 0, usuarios_activos: 0, salones_operativos: 0, maquinas_activas: 0 });
                 setRevenueEvolution([]);
-                setRevenueBySalon([]);
+                setComparativeStats({ summary: [], monthly: {} });
                 setTopMachines([]);
                 setIsLoading(false);
                 return;
@@ -174,17 +170,17 @@ export default function Dashboard() {
                 }
 
                 // Fetch Charts in parallel, but allow them to fail individually without blocking stats
-                const [evolutionResult, salonResult, machinesResult] = await Promise.allSettled([
+                const [evolutionResult, comparativeResult, machinesResult] = await Promise.allSettled([
                     statsApi.getRevenueEvolution(queryFilters),
-                    statsApi.getRevenueBySalon(queryFilters),
+                    statsApi.getComparativeStats(queryFilters),
                     statsApi.getTopMachines(queryFilters)
                 ]);
 
                 if (evolutionResult.status === 'fulfilled') setRevenueEvolution(evolutionResult.value);
                 else console.error("Error fetching revenue evolution:", evolutionResult.reason);
 
-                if (salonResult.status === 'fulfilled') setRevenueBySalon(salonResult.value);
-                else console.error("Error fetching salon distribution:", salonResult.reason);
+                if (comparativeResult.status === 'fulfilled') setComparativeStats(comparativeResult.value);
+                else console.error("Error fetching comparative stats:", comparativeResult.reason);
 
                 if (machinesResult.status === 'fulfilled') setTopMachines(machinesResult.value);
                 else console.error("Error fetching top machines:", machinesResult.reason);
@@ -237,23 +233,29 @@ export default function Dashboard() {
     }, [activeFilters.years, selectedSalonIds]);
 
     const formatCurrency = (value: number) => {
-        return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value);
+        return value.toLocaleString('es-ES', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }) + ' €';
     };
 
     return (
         <div className="max-w-7xl mx-auto space-y-8">
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-                    <p className="text-gray-500 mt-1">Panel de Administración</p>
-                </div>
+            {/* Sticky Header and Filters */}
+            <div className="sticky top-0 z-50 bg-gray-50/90 backdrop-blur-sm -mt-8 pt-8 pb-4 mb-4">
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+                        <p className="text-gray-500 mt-1">Panel de Administración</p>
+                    </div>
 
-                <DashboardFilters
-                    metadata={filtersMetadata}
-                    filters={activeFilters}
-                    onChange={setActiveFilters}
-                    salons={availableSalons}
-                />
+                    <DashboardFilters
+                        metadata={filtersMetadata}
+                        filters={activeFilters}
+                        onChange={setActiveFilters}
+                        salons={availableSalons}
+                    />
+                </div>
             </div>
 
             {/* Stats Grid */}
@@ -358,10 +360,10 @@ export default function Dashboard() {
 
             {/* Analytics Charts */}
             <div className="grid grid-cols-1 gap-8">
+                <ComparativeAnalytics data={comparativeStats} isLoading={isLoading} />
                 <RevenueEvolutionChart
                     data={revenueEvolution}
                 />
-                <SalonDistributionChart data={revenueBySalon} />
             </div>
 
             {/* Top Machines Table */}

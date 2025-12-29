@@ -10,6 +10,7 @@ class UserBase(BaseModel):
     
     # New fields
     telefono: Optional[str] = None
+    telefono_fijo: Optional[str] = None
     telegram_user: Optional[str] = None
     cargo: Optional[str] = None
     departamento: Optional[str] = None

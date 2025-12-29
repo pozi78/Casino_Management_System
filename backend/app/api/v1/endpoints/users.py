@@ -132,7 +132,7 @@ async def read_user_me(
     if is_admin:
         # Fetch ALL salons
         from app.models.salon import Salon
-        result = await db.execute(select(Salon))
+        result = await db.execute(select(Salon).where(Salon.deleted_at.is_(None)))
         all_salons = result.scalars().all()
         
         # Create virtual assignments for all salons
@@ -162,8 +162,9 @@ async def read_user_me(
         user_dict['roles'] = [jsonable_encoder(r) for r in user_roles]
         return user_dict
 
-    # For non-admin, ensure roles are attached
+    # For non-admin, ensure roles are attached and filter deleted salons
     current_user.roles = user_roles
+    current_user.salones_asignados = [ua for ua in current_user.salones_asignados if ua.salon and ua.salon.deleted_at is None]
     return current_user
 
 @router.get("/", response_model=List[User])
@@ -188,6 +189,8 @@ async def read_users(
         .offset(skip).limit(limit)
     )
     users = result.scalars().all()
+    for u in users:
+        u.salones_asignados = [ua for ua in u.salones_asignados if ua.salon and ua.salon.deleted_at is None]
     return users
 
 @router.get("/{user_id}", response_model=User)
